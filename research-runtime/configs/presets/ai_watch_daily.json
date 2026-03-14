@@ -1,0 +1,26 @@
+{
+  "name": "ai_watch_daily",
+  "category": "mixed",
+  "seed_urls": [
+    "https://arxiv.org/list/cs.AI/recent",
+    "https://openai.com/news/"
+  ],
+  "allowed_domains": [
+    "arxiv.org",
+    "huggingface.co",
+    "paperswithcode.com",
+    "openai.com",
+    "anthropic.com",
+    "deepmind.google",
+    "blog.google"
+  ],
+  "query_template": "Collect daily AI papers and primary-source AI news.",
+  "prompt_template": "ai_watch_daily_prompt.md",
+  "max_items": 12,
+  "output_profile": "daily_watch",
+  "gate_enabled": true,
+  "composed_presets": [
+    "paper_arxiv_ai_recent",
+    "ai_news_official"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "default_max_items": 8,
+  "default_timeout_seconds": 180,
+  "llm_timeout_seconds": 600,
+  "llm_max_retries": 4,
+  "llm_retry_backoff_seconds": 2.0,
+  "default_user_agent": "RanDResearchRuntime/0.1 (+https://arxiv.org/list/cs.AI/recent)",
+  "enable_gate": true,
+  "enable_insight": true,
+  "enable_memx": true,
+  "enable_tracker_bridge": true,
+  "save_root": "runs",
+  "state_path": "state/taskstate.json",
+  "memory_log_path": "state/memx-journal.json",
+  "tracker_sync_path": "state/tracker-sync.json"
+}

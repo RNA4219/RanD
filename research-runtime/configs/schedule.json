@@ -1,0 +1,14 @@
+{
+  "jobs": [
+    {
+      "name": "morning-ai-watch",
+      "preset": "ai_watch_daily",
+      "label": "Morning AI watch"
+    },
+    {
+      "name": "night-arxiv-ai",
+      "preset": "paper_arxiv_ai_recent",
+      "label": "Night arXiv watch"
+    }
+  ]
+}

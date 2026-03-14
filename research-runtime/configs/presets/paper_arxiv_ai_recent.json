@@ -1,0 +1,44 @@
+{
+  "name": "paper_arxiv_ai_recent",
+  "category": "paper",
+  "seed_urls": [
+    "https://arxiv.org/list/cs.AI/recent",
+    "https://huggingface.co/papers",
+    "https://paperswithcode.com/"
+  ],
+  "allowed_domains": [
+    "arxiv.org",
+    "huggingface.co",
+    "paperswithcode.com"
+  ],
+  "query_template": "Collect recent cs.AI papers and related trending AI papers with code.",
+  "prompt_template": "paper_research_prompt.md",
+  "max_items": 8,
+  "output_profile": "paper_report",
+  "gate_enabled": true,
+  "sources": [
+    {
+      "name": "arxiv_cs_ai_recent",
+      "kind": "paper",
+      "fetcher": "arxiv_recent_html",
+      "url": "https://arxiv.org/list/cs.AI/recent",
+      "priority": 1
+    },
+    {
+      "name": "hugging_face_papers",
+      "kind": "paper",
+      "fetcher": "generic_html_links",
+      "url": "https://huggingface.co/papers",
+      "priority": 2,
+      "link_pattern": "/papers/"
+    },
+    {
+      "name": "papers_with_code_latest",
+      "kind": "paper",
+      "fetcher": "generic_html_links",
+      "url": "https://paperswithcode.com/",
+      "priority": 3,
+      "link_pattern": "/paper/"
+    }
+  ]
+}

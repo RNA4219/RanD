@@ -1,0 +1,9 @@
+{
+  "preset": "paper_arxiv_ai_recent",
+  "max_items": 5,
+  "topics": [
+    "agents",
+    "evaluation",
+    "reasoning"
+  ]
+}

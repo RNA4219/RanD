@@ -1,0 +1,63 @@
+{
+  "name": "ai_news_official",
+  "category": "news",
+  "seed_urls": [
+    "https://openai.com/news/",
+    "https://www.anthropic.com/news",
+    "https://deepmind.google/discover/blog/",
+    "https://blog.google/technology/ai/"
+  ],
+  "allowed_domains": [
+    "openai.com",
+    "anthropic.com",
+    "deepmind.google",
+    "blog.google"
+  ],
+  "query_template": "Collect important official AI research and product news from primary sources.",
+  "prompt_template": "official_ai_news_prompt.md",
+  "max_items": 8,
+  "output_profile": "news_report",
+  "gate_enabled": true,
+  "sources": [
+    {
+      "name": "openai_news",
+      "kind": "news",
+      "fetcher": "rss_or_html",
+      "url": "https://openai.com/news/",
+      "rss_candidates": [
+        "https://openai.com/news/rss.xml"
+      ],
+      "priority": 1
+    },
+    {
+      "name": "anthropic_news",
+      "kind": "news",
+      "fetcher": "rss_or_html",
+      "url": "https://www.anthropic.com/news",
+      "rss_candidates": [
+        "https://www.anthropic.com/news/rss.xml"
+      ],
+      "priority": 2
+    },
+    {
+      "name": "google_deepmind_blog",
+      "kind": "news",
+      "fetcher": "rss_or_html",
+      "url": "https://deepmind.google/discover/blog/",
+      "rss_candidates": [
+        "https://deepmind.google/discover/blog/rss.xml"
+      ],
+      "priority": 3
+    },
+    {
+      "name": "google_ai_blog",
+      "kind": "news",
+      "fetcher": "rss_or_html",
+      "url": "https://blog.google/technology/ai/",
+      "rss_candidates": [
+        "https://blog.google/technology/ai/rss/"
+      ],
+      "priority": 4
+    }
+  ]
+}
