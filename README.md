@@ -10,6 +10,9 @@
 ## 入口
 
 - アーキテクチャ文書: [docs/architecture.md](/Users/ryo-n/Codex_dev/RanD/docs/architecture.md)
+- 要件定義: [docs/requirements.md](/Users/ryo-n/Codex_dev/RanD/docs/requirements.md)
+- 仕様書: [docs/specification.md](/Users/ryo-n/Codex_dev/RanD/docs/specification.md)
+- 受け入れ基準: [docs/evaluation.md](/Users/ryo-n/Codex_dev/RanD/docs/evaluation.md)
 - 導入用リポジトリ: [r-and-d-agent-installer](/Users/ryo-n/Codex_dev/RanD/r-and-d-agent-installer)
 - 調査ランタイム: [research-runtime](/Users/ryo-n/Codex_dev/RanD/research-runtime)
 - Kestra flow 定義: [kestra/README.md](/Users/ryo-n/Codex_dev/RanD/kestra/README.md)
@@ -21,6 +24,8 @@
 ## これは何をするリポジトリか
 
 `RanD` 自体は単独の巨大アプリではありません。実際には次の 2 層を束ねる親リポジトリです。
+
+文書の読み順は、まず [docs/architecture.md](/Users/ryo-n/Codex_dev/RanD/docs/architecture.md) で全体像を確認し、そのあと [docs/requirements.md](/Users/ryo-n/Codex_dev/RanD/docs/requirements.md)、[docs/specification.md](/Users/ryo-n/Codex_dev/RanD/docs/specification.md)、[docs/evaluation.md](/Users/ryo-n/Codex_dev/RanD/docs/evaluation.md) の順で「要求」「実装契約」「受け入れ条件」を見る前提です。
 
 - 導入層:
   - `r-and-d-agent-installer` が必要な OSS 群を固定コミットで取得します。
@@ -232,3 +237,7 @@ cd C:\Users\ryo-n\Codex_dev\RanD\research-runtime
 導入対象の各リポジトリは [components.json](/Users/ryo-n/Codex_dev/RanD/r-and-d-agent-installer/manifests/components.json) の `pinnedCommit` に固定されます。
 
 つまり、GitHub 側や `Codex_dev` 側のリポジトリが更新されても、`install-r-and-d-agent.bat` が導入する版は変わりません。再現したい構成を壊さずに更新判断できます。
+
+
+
+
