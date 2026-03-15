@@ -1,0 +1,234 @@
+# Kestra Flow: RanD Heartbeat
+# Periodic research patrol with preset auto-selection and Misskey posting
+
+id: research-heartbeat
+namespace: rand
+
+# Schedule: Run every 5 minutes
+triggers:
+  - id: schedule-trigger
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "*/5 * * * *"
+
+variables:
+  runtime_root: "{{ globals.rand_runtime_root | default('C:/Users/ryo-n/Codex_dev/RanD/research-runtime') }}"
+  kestra_base_url: "{{ globals.kestra_base_url | default('http://localhost:8080') }}"
+
+tasks:
+  # 1. Determine which preset to run based on time
+  - id: select-preset
+    type: io.kestra.plugin.scripts.python.Script
+    outputFiles:
+      - heartbeat_config.json
+    script: |
+      import json
+      from datetime import datetime, timezone
+
+      now = datetime.now(timezone.utc)
+      hour = now.hour
+      minute = now.minute
+
+      # Preset schedule (in UTC):
+      # - ai_watch_daily: around 8:00 JST = 23:00 UTC previous day
+      # - paper_arxiv_ai_recent: around 2:00 JST = 17:00 UTC
+      # For heartbeat (every 5 min), check if we're in the target window
+
+      presets_to_run = []
+
+      # ai_watch_daily: 23:00-23:10 UTC (8:00-8:10 JST)
+      if hour == 23 and 0 <= minute < 10:
+          presets_to_run.append({
+              "preset": "ai_watch_daily",
+              "reason": "scheduled_morning_watch",
+              "max_items": 12
+          })
+
+      # paper_arxiv_ai_recent: 17:00-17:10 UTC (2:00-2:10 JST)
+      if hour == 17 and 0 <= minute < 10:
+          presets_to_run.append({
+              "preset": "paper_arxiv_ai_recent",
+              "reason": "scheduled_night_papers",
+              "max_items": 8
+          })
+
+      # For manual trigger or other times, default to quick check
+      is_manual = "{{ trigger.type }}" != "io.kestra.plugin.core.trigger.Schedule"
+      if is_manual or not presets_to_run:
+          # Manual trigger: run quick check
+          if is_manual:
+              preset_name = "{{ trigger.body.preset | default('paper_arxiv_ai_recent') }}"
+              presets_to_run.append({
+                  "preset": preset_name,
+                  "reason": "manual_trigger",
+                  "max_items": int("{{ trigger.body.max_items | default('5') }}")
+              })
+          else:
+              # No scheduled preset this window - heartbeat patrol only
+              pass
+
+      output = {
+          "presets_to_run": presets_to_run,
+          "heartbeat_time": now.isoformat(),
+          "is_manual": is_manual
+      }
+
+      with open("{{ outputDir }}/heartbeat_config.json", "w") as f:
+          json.dump(output, f, indent=2)
+
+      print(f"Heartbeat config: {len(presets_to_run)} presets to run")
+
+  # 2. Run research-runtime for each selected preset
+  - id: run-research
+    type: io.kestra.plugin.scripts.python.Script
+    outputFiles:
+      - research_results.json
+      - reports/*.json
+    script: |
+      import json
+      import os
+      import subprocess
+      import sys
+      from pathlib import Path
+
+      runtime_root = Path(r"{{ vars.runtime_root }}")
+      output_dir = Path("{{ outputDir }}")
+      output_dir.mkdir(exist_ok=True)
+
+      with open("{{ outputs.select-preset.outputFiles['heartbeat_config.json'] }}") as f:
+          config = json.load(f)
+
+      presets_to_run = config.get("presets_to_run", [])
+      results = []
+
+      env = os.environ.copy()
+      env["PYTHONPATH"] = str(runtime_root / "src")
+
+      for preset_config in presets_to_run:
+          preset = preset_config["preset"]
+          max_items = preset_config.get("max_items", 8)
+
+          cmd = [
+              sys.executable, "-m", "rand_research.cli", "run-once",
+              "--preset", preset,
+              "--max-items", str(max_items)
+          ]
+
+          try:
+              result = subprocess.run(
+                  cmd,
+                  cwd=runtime_root,
+                  env=env,
+                  capture_output=True,
+                  text=True,
+                  timeout=600,
+              )
+              if result.returncode == 0:
+                  report = json.loads(result.stdout)
+                  results.append({
+                      "preset": preset,
+                      "success": True,
+                      "collected_count": len(report.get("collected_items", [])),
+                      "report": report
+                  })
+                  # Save individual report
+                  (output_dir / f"reports/{preset}.json").write_text(
+                      json.dumps(report, ensure_ascii=False, indent=2)
+                  )
+              else:
+                  results.append({
+                      "preset": preset,
+                      "success": False,
+                      "error": result.stderr
+                  })
+          except subprocess.TimeoutExpired:
+              results.append({
+                  "preset": preset,
+                  "success": False,
+                  "error": "Timeout after 600 seconds"
+              })
+          except Exception as e:
+              results.append({
+                  "preset": preset,
+                  "success": False,
+                  "error": str(e)
+              })
+
+      with open(output_dir / "research_results.json", "w") as f:
+          json.dump(results, f, indent=2)
+
+      print(f"Research completed: {len([r for r in results if r['success']])}/{len(results)} successful")
+
+  # 3. Post summary to Misskey via pulse-kestra
+  - id: post-to-misskey
+    type: io.kestra.plugin.scripts.http.Request
+    uri: "{{ vars.kestra_base_url }}/api/v1/main/executions/webhook/pulse/notifier-resend/{{ secret('RAND_RESEARCH_WEBHOOK_KEY') }}"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "event": "rand.heartbeat",
+        "source": "research-heartbeat",
+        "results": {{ outputs.run-research.outputFiles['research_results.json'] }},
+        "timestamp": "{{ outputs.select-preset.outputFiles['heartbeat_config.json'] | json(data='heartbeat_time') }}"
+      }
+
+  # 4. Check for stuck tasks in RanD state
+  - id: check-stuck-tasks
+    type: io.kestra.plugin.scripts.python.Script
+    outputFiles:
+      - stuck_tasks.json
+    script: |
+      import json
+      from datetime import datetime, timezone, timedelta
+      from pathlib import Path
+
+      runtime_root = Path(r"{{ vars.runtime_root }}")
+      state_path = runtime_root / "state" / "taskstate.json"
+
+      stuck_tasks = []
+
+      if state_path.exists():
+          with open(state_path) as f:
+              state = json.load(f)
+
+          now = datetime.now(timezone.utc)
+          stuck_threshold = now - timedelta(minutes=30)
+
+          for task in state.get("tasks", []):
+              if task.get("status") == "running":
+                  updated_at = task.get("updated_at")
+                  if updated_at:
+                      try:
+                          task_time = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+                          if task_time < stuck_threshold:
+                              stuck_tasks.append({
+                                  "task_id": task.get("run_id"),
+                                  "preset": task.get("preset"),
+                                  "status": task.get("status"),
+                                  "updated_at": updated_at
+                              })
+                      except Exception:
+                          pass
+
+      with open("{{ outputDir }}/stuck_tasks.json", "w") as f:
+          json.dump(stuck_tasks, f, indent=2)
+
+      print(f"Found {len(stuck_tasks)} stuck tasks")
+
+  # 5. Summary log
+  - id: summary-log
+    type: io.kestra.plugin.core.log.Log
+    message: |
+      RanD Heartbeat cycle completed:
+      - Research results: {{ outputs.run-research.outputFiles['research_results.json'] }}
+      - Stuck tasks: {{ outputs.check-stuck-tasks.outputFiles['stuck_tasks.json'] }}
+
+# Error handling
+errors:
+  - id: error-handler
+    type: io.kestra.plugin.core.log.Log
+    message: |
+      RanD Heartbeat encountered an error:
+      - Task: {{ task.id }}
+      - Message: {{ error.message }}

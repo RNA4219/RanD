@@ -2,10 +2,47 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 
 from rand_research.config import load_schedule
 from rand_research.integrations import check_dependencies
 from rand_research.pipeline import run_once
+
+
+def _select_preset_by_time() -> str:
+    """Auto-select preset based on current time (JST schedule)."""
+    now = datetime.now(timezone.utc)
+    hour = now.hour
+
+    # 8:00 JST = 23:00 UTC previous day -> ai_watch_daily
+    # 2:00 JST = 17:00 UTC -> paper_arxiv_ai_recent
+    if hour == 23:
+        return "ai_watch_daily"
+    elif hour == 17:
+        return "paper_arxiv_ai_recent"
+    else:
+        return "paper_arxiv_ai_recent"
+
+
+def _build_summary(report: dict, preset: str) -> dict:
+    """Build summary for Misskey posting."""
+    items = report.get("collected_items", [])
+    state_ctx = report.get("state_context", {})
+    before_count = len(state_ctx.get("before", {}).get("open_tasks", []))
+    after_count = len(state_ctx.get("after", {}).get("open_tasks", []))
+
+    return {
+        "preset": preset,
+        "collected_count": len(items),
+        "open_tasks_before": before_count,
+        "open_tasks_after": after_count,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "top_items": [
+            {"title": item.get("title", ""), "url": item.get("url", "")}
+            for item in items[:3]
+            if item.get("title")
+        ],
+    }
 
 
 def main() -> None:
@@ -18,6 +55,13 @@ def main() -> None:
 
     subparsers.add_parser("run-schedule")
     subparsers.add_parser("env-check")
+
+    # Heartbeat command
+    heartbeat_parser = subparsers.add_parser("heartbeat")
+    heartbeat_parser.add_argument("--preset", default=None, help="Preset to run (auto-select if not specified)")
+    heartbeat_parser.add_argument("--max-items", type=int, default=5, help="Max items to collect")
+    heartbeat_parser.add_argument("--dry-run", action="store_true", help="Show what would run without executing")
+    heartbeat_parser.add_argument("--summary-only", action="store_true", help="Output only summary for Misskey")
 
     args = parser.parse_args()
     if args.command == "run-once":
@@ -33,6 +77,27 @@ def main() -> None:
         return
     if args.command == "env-check":
         print(json.dumps(check_dependencies(), ensure_ascii=False, indent=2))
+        return
+    if args.command == "heartbeat":
+        preset = args.preset or _select_preset_by_time()
+
+        if args.dry_run:
+            output = {
+                "dry_run": True,
+                "preset": preset,
+                "max_items": args.max_items,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            print(json.dumps(output, ensure_ascii=False, indent=2))
+            return
+
+        result = run_once(preset, args.max_items)
+
+        if args.summary_only:
+            summary = _build_summary(result["report"], preset)
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        else:
+            print(json.dumps(result["report"], ensure_ascii=False, indent=2))
         return
 
 
