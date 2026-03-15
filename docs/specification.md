@@ -209,7 +209,17 @@ RanD は sync payload を生成する。必要最小キー:
 - root: `schema_version`, `events`
 - event: `schema_version`, `sync_id`, `recorded_at`, `preset`, `items`, `gate_recommendations`, `status`, `error`
 
-## 6.4 最小観測点
+### 6.4 pulse-kestra 制御面契約
+
+RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現状契約は次とする。
+
+- heartbeat は stuck task、pending / failed reply、retry candidate の軽量巡回に限定する
+- manual replay は `task_id` または `trace_id` 起点で途中 stage から再開できる
+- notifier resend は保存済み `reply_text` を再利用して worker 再実行なしで動く
+- duplicate suppression は `note`, `reply`, `replay` の 3 種 key を使う
+- replay / resend / duplicate suppression の件数は `pulse-kestra` の flow output と taskstate field を集計元にする
+
+## 6.5 最小観測点
 
 ダッシュボード自体は本仕様の対象外とするが、次の指標を後から集計できる field / log を保持しなければならない。
 
@@ -223,7 +233,7 @@ RanD は sync payload を生成する。必要最小キー:
 - tracker sync failure 件数
 - duplicate suppression 件数
 
-`RanD` 単体では `status`, `status_reason`, `dependency_health`, `tracker_sync_refs` を集計元とし、通知・再送・重複抑止の詳細は `pulse-kestra` 側の flow output と taskstate 契約で補完する。
+`RanD` 単体では `status`, `status_reason`, `dependency_health`, `tracker_sync_refs` を集計元とし、通知・再送・重複抑止の詳細は `pulse-kestra` 側の flow output、taskstate field、dedupe metadata で補完する。
 
 ## 7. テスト戦略
 
