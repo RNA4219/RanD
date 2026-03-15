@@ -11,6 +11,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Resolve-Components.ps1')
 
 function Invoke-CloneAndPin {
     param(
@@ -43,14 +44,7 @@ function Remove-TargetIfNeeded {
     return $true
 }
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$manifestPath = Join-Path $repoRoot 'manifests\\components.json'
-$manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json
-
-if ($SkipOptional) {
-    $manifest = $manifest | Where-Object { $_.required }
-}
-
+$repoRoot = Get-InstallerRepoRoot
 $installRootPath = Join-Path $repoRoot $InstallRoot
 $reposRoot = Join-Path $installRootPath 'repos'
 $stateRoot = Join-Path $installRootPath 'state'
@@ -63,19 +57,16 @@ foreach ($path in @($installRootPath, $reposRoot, $stateRoot, $logsRoot, $config
     }
 }
 
-foreach ($component in $manifest) {
+$components = Get-ResolvedComponents -RepoRoot $repoRoot -InstallRootPath $installRootPath -SkipOptional:$SkipOptional.IsPresent
+
+foreach ($component in $components) {
     $targetPath = Join-Path $installRootPath $component.installSubdir
-    $localExists = $false
-
-    if ($component.localPath -and (Test-Path -LiteralPath $component.localPath)) {
-        $localExists = $true
-    }
-
     $useLocal = $false
+
     switch ($Mode) {
-        'local' { $useLocal = $localExists }
+        'local' { $useLocal = $component.localAvailable }
         'remote' { $useLocal = $false }
-        default { $useLocal = $localExists }
+        default { $useLocal = $component.localAvailable }
     }
 
     $canProceed = Remove-TargetIfNeeded -TargetPath $targetPath -ShouldForce:$Force.IsPresent
@@ -89,19 +80,23 @@ foreach ($component in $manifest) {
     }
 
     if ($useLocal) {
-        Write-Host "[clone-local] $($component.name) <= $($component.localPath) @ $($component.pinnedCommit)"
-        Invoke-CloneAndPin -SourcePath $component.localPath -TargetPath $targetPath -PinnedCommit $component.pinnedCommit
+        Write-Host "[clone-local] $($component.name) <= $($component.resolvedLocalPath) @ $($component.pinnedCommit)"
+        Invoke-CloneAndPin -SourcePath $component.resolvedLocalPath -TargetPath $targetPath -PinnedCommit $component.pinnedCommit
         continue
     }
 
-    if ($Mode -eq 'local' -and -not $localExists) {
-        Write-Warning "$($component.name) localPath was not found, so it is skipped in -Mode local."
+    if ($Mode -eq 'local' -and -not $component.localAvailable) {
+        Write-Warning "$($component.name) local path could not be resolved, so it is skipped in -Mode local."
         continue
     }
 
     if ([string]::IsNullOrWhiteSpace($component.remoteUrl)) {
         Write-Warning "$($component.name) cannot be installed because remoteUrl is not set."
         continue
+    }
+
+    if ($Mode -eq 'auto' -and $component.localResolution -ne 'remote-only' -and -not $component.localAvailable) {
+        Write-Warning "$($component.name) local path was resolved via $($component.localResolution) but not found. Falling back to remote clone."
     }
 
     Write-Host "[clone-remote] $($component.name) <= $($component.remoteUrl) @ $($component.pinnedCommit)"

@@ -21,3 +21,7 @@ def load_preset(name: str) -> dict[str, Any]:
 
 def load_schedule() -> dict[str, Any]:
     return _load_json(workspace_root() / "configs" / "schedule.json")
+
+
+def load_heartbeat_config() -> dict[str, Any]:
+    return _load_json(workspace_root() / "configs" / "heartbeat.json")

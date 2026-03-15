@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from rand_research.config import load_runtime_config
-from rand_research.models import NormalizedItem
+from rand_research.models import NormalizedItem, SCHEMA_VERSION
 from rand_research.paths import installer_root, workspace_root
 
 
@@ -103,17 +103,36 @@ def run_insight(items: list[NormalizedItem]) -> dict[str, Any]:
         for item in items:
             payload = build_insight_payload(item)
             results.append(insight_core.run(request_dict=payload))
-        return {"mode": "insight-agent", "results": results}
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "status": "ok",
+            "mode": "insight-agent",
+            "results": results,
+            "error": None,
+        }
     except Exception as exc:
-        return {"mode": "fallback", "results": [_fallback_insight(item) for item in items], "error": str(exc)}
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "status": "degraded",
+            "mode": "fallback",
+            "results": [_fallback_insight(item) for item in items],
+            "error": str(exc),
+        }
 
 
-def run_gate(items: list[NormalizedItem]) -> dict[str, Any]:
+def run_gate(items: list[NormalizedItem], dependency_health: dict[str, str]) -> dict[str, Any]:
     ensure_repo_paths()
     load_env_from_peer_repos()
     targets = [item for item in items if item.high_priority][:3]
     if not targets:
-        return {"mode": "skipped", "results": []}
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "status": "ok",
+            "mode": "skipped",
+            "results": [],
+            "error": None,
+            "dependency_health": dependency_health,
+        }
     try:
         experiment_gate = importlib.import_module("experiment_gate")
         results = []
@@ -130,30 +149,52 @@ def run_gate(items: list[NormalizedItem]) -> dict[str, Any]:
                     minimum_scope="Read the item, summarize it, and define one small next step.",
                     non_goals=["Production rollout"],
                     required_inputs_or_tools=[item.url],
-                    validation_plan="Collect evidence and compare novelty, feasibility, and impact."
+                    validation_plan="Collect evidence and compare novelty, feasibility, and impact.",
                 ),
                 evidence_bundle=experiment_gate.EvidenceBundle(
                     claims=item.claims,
                     sources=[item.url],
                     gaps=["Full manual review not completed yet"],
                 ),
-                decision_context="Daily AI research watch",
+                decision_context=(
+                    "Daily AI research watch. Dependency health: "
+                    + ", ".join(f"{name}={status}" for name, status in sorted(dependency_health.items()))
+                ),
             )
-            results.append(experiment_gate.run_gate(request=request).model_dump())
-        return {"mode": "experiment-gate", "results": results}
+            result = experiment_gate.run_gate(request=request).model_dump()
+            result["dependency_health"] = dependency_health
+            results.append(result)
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "status": "ok",
+            "mode": "experiment-gate",
+            "results": results,
+            "error": None,
+            "dependency_health": dependency_health,
+        }
     except Exception as exc:
-        return {"mode": "fallback", "results": [_fallback_gate(item) for item in targets], "error": str(exc)}
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "status": "degraded",
+            "mode": "fallback",
+            "results": [_fallback_gate(item, dependency_health) for item in targets],
+            "error": str(exc),
+            "dependency_health": dependency_health,
+        }
 
 
 def write_memx_journal(path: Path, run_id: str, preset: str, items: list[NormalizedItem], artifacts: dict[str, str]) -> dict[str, Any]:
     payload = _load_log(path, "entries")
     entry = {
+        "schema_version": SCHEMA_VERSION,
         "entry_id": f"memx-{run_id}",
         "scope": f"rand:{preset}",
         "recorded_at": datetime.utcnow().isoformat() + "Z",
         "summary": f"{len(items)} items collected",
         "sources": [item.url for item in items[:10]],
         "artifacts": artifacts,
+        "status": "ok",
+        "error": None,
     }
     payload["entries"].append(entry)
     _write_json(path, payload)
@@ -163,6 +204,7 @@ def write_memx_journal(path: Path, run_id: str, preset: str, items: list[Normali
 def write_tracker_sync(path: Path, run_id: str, preset: str, items: list[NormalizedItem], gate_payload: dict[str, Any]) -> dict[str, Any]:
     payload = _load_log(path, "events")
     event = {
+        "schema_version": SCHEMA_VERSION,
         "sync_id": f"sync-{run_id}",
         "recorded_at": datetime.utcnow().isoformat() + "Z",
         "preset": preset,
@@ -180,9 +222,12 @@ def write_tracker_sync(path: Path, run_id: str, preset: str, items: list[Normali
                 "request_id": result.get("run", {}).get("request_id"),
                 "verdict": result.get("decision", {}).get("verdict"),
                 "recommended_action": result.get("next_step", {}).get("recommended_action"),
+                "dependency_health": result.get("dependency_health", gate_payload.get("dependency_health", {})),
             }
             for result in gate_payload.get("results", [])
         ],
+        "status": "ok",
+        "error": None,
     }
     payload["events"].append(event)
     _write_json(path, payload)
@@ -224,7 +269,9 @@ def check_dependencies() -> dict[str, Any]:
 
 def _fallback_insight(item: NormalizedItem) -> dict[str, Any]:
     return {
-        "run": {"request_id": item.id, "status": "completed", "mode": "fallback-insight"},
+        "schema_version": SCHEMA_VERSION,
+        "status": "degraded",
+        "run": {"request_id": item.id, "status": "degraded", "mode": "fallback-insight"},
         "insights": [
             {
                 "id": f"{item.id}-insight",
@@ -244,24 +291,30 @@ def _fallback_insight(item: NormalizedItem) -> dict[str, Any]:
     }
 
 
-def _fallback_gate(item: NormalizedItem) -> dict[str, Any]:
+def _fallback_gate(item: NormalizedItem, dependency_health: dict[str, str]) -> dict[str, Any]:
     score = 72 if item.kind == "paper" else 68
     verdict = "go" if score >= 70 else "hold"
     return {
-        "run": {"request_id": item.id, "status": "completed", "mode": "fallback-gate"},
+        "schema_version": SCHEMA_VERSION,
+        "status": "degraded",
+        "run": {"request_id": item.id, "status": "degraded", "mode": "fallback-gate"},
         "decision": {"verdict": verdict, "total_score": score, "confidence": 0.51},
         "next_step": {
             "recommended_action": "run_minimal_probe" if verdict == "go" else "gather_evidence",
-            "minimal_probe": f"Review {item.url} and define one concrete follow-up."
+            "minimal_probe": f"Review {item.url} and define one concrete follow-up.",
         },
         "reasoning_summary": item.summary or item.title,
+        "dependency_health": dependency_health,
     }
 
 
 def _load_log(path: Path, key: str) -> dict[str, Any]:
     if not path.exists():
-        return {key: []}
-    return json.loads(path.read_text(encoding="utf-8"))
+        return {"schema_version": SCHEMA_VERSION, key: []}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload.setdefault("schema_version", SCHEMA_VERSION)
+    payload.setdefault(key, [])
+    return payload
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

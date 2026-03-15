@@ -1,31 +1,27 @@
 [CmdletBinding()]
 param(
-    [string]$InstallRoot = '.installed'
+    [string]$InstallRoot = '.installed',
+    [switch]$SkipOptional
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Resolve-Components.ps1')
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$manifestPath = Join-Path $repoRoot 'manifests\\components.json'
-$manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json
+$repoRoot = Get-InstallerRepoRoot
 $installRootPath = Join-Path $repoRoot $InstallRoot
+$components = Get-ResolvedComponents -RepoRoot $repoRoot -InstallRootPath $installRootPath -SkipOptional:$SkipOptional.IsPresent
 
-$rows = foreach ($component in $manifest) {
+$rows = foreach ($component in $components) {
     $targetPath = Join-Path $installRootPath $component.installSubdir
-    $localAvailable = $false
-
-    if ($component.localPath -and (Test-Path -LiteralPath $component.localPath)) {
-        $localAvailable = $true
-    }
-
     [pscustomobject]@{
         Name = $component.name
         Layer = $component.layer
         Required = $component.required
-        LocalAvailable = $localAvailable
+        LocalAvailable = $component.localAvailable
+        LocalResolution = $component.localResolution
+        ResolvedLocalPath = $component.resolvedLocalPath
         Installed = Test-Path -LiteralPath $targetPath
         PinnedCommit = $component.pinnedCommit
-        LocalPath = $component.localPath
         RemoteUrl = $component.remoteUrl
         TargetPath = $targetPath
     }

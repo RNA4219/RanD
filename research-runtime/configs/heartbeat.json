@@ -1,0 +1,16 @@
+{
+  "timezone": "Asia/Tokyo",
+  "default_preset": "paper_arxiv_ai_recent",
+  "rules": [
+    {
+      "name": "morning-daily-watch",
+      "hours": [8, 9, 10, 11],
+      "preset": "ai_watch_daily"
+    },
+    {
+      "name": "night-paper-watch",
+      "hours": [21, 22, 23],
+      "preset": "paper_arxiv_ai_recent"
+    }
+  ]
+}

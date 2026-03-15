@@ -1,0 +1,8 @@
+<rss><channel>
+  <item>
+    <title>OpenAI News Item</title>
+    <link>https://openai.com/news/example</link>
+    <description>Important OpenAI update.</description>
+    <pubDate>Mon, 01 Jan 2026 00:00:00 GMT</pubDate>
+  </item>
+</channel></rss>

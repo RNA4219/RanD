@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from rand_research.models import ExecutionContext
+from rand_research.models import ExecutionContext, SCHEMA_VERSION
 
 
 DONE_STATUSES = {"done", "archived"}
@@ -13,19 +13,26 @@ DONE_STATUSES = {"done", "archived"}
 
 def load_taskstate(state_path: Path) -> dict[str, Any]:
     if not state_path.exists():
-        return {"tasks": []}
-    return json.loads(state_path.read_text(encoding="utf-8"))
+        return {"schema_version": SCHEMA_VERSION, "tasks": []}
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload.setdefault("schema_version", SCHEMA_VERSION)
+    payload.setdefault("tasks", [])
+    return payload
 
 
 def save_taskstate(state_path: Path, payload: dict[str, Any]) -> None:
     state_path.parent.mkdir(parents=True, exist_ok=True)
+    payload.setdefault("schema_version", SCHEMA_VERSION)
     state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def load_memx_journal(path: Path) -> dict[str, Any]:
     if not path.exists():
-        return {"entries": []}
-    return json.loads(path.read_text(encoding="utf-8"))
+        return {"schema_version": SCHEMA_VERSION, "entries": []}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload.setdefault("schema_version", SCHEMA_VERSION)
+    payload.setdefault("entries", [])
+    return payload
 
 
 def build_execution_context(
@@ -73,6 +80,7 @@ def upsert_task_record(
     status: str,
     artifacts: dict[str, str],
     summary: str,
+    status_reason: list[str] | None = None,
 ) -> dict[str, Any]:
     payload = load_taskstate(state_path)
     records = payload.setdefault("tasks", [])
@@ -93,6 +101,7 @@ def upsert_task_record(
             "updated_at": now,
             "artifacts": artifacts,
             "summary": summary,
+            "status_reason": status_reason or [],
         }
     )
     save_taskstate(state_path, payload)

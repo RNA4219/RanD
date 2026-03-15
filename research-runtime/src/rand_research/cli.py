@@ -3,29 +3,26 @@ from __future__ import annotations
 import argparse
 import json
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
-from rand_research.config import load_schedule
+from rand_research.config import load_heartbeat_config, load_schedule
 from rand_research.integrations import check_dependencies
 from rand_research.pipeline import run_once
 
 
 def _select_preset_by_time() -> str:
-    """Auto-select preset based on current time (JST schedule)."""
-    now = datetime.now(timezone.utc)
-    hour = now.hour
+    config = load_heartbeat_config()
+    timezone_name = config.get("timezone", "Asia/Tokyo")
+    now = datetime.now(ZoneInfo(timezone_name))
+    current_hour = now.hour
 
-    # 8:00 JST = 23:00 UTC previous day -> ai_watch_daily
-    # 2:00 JST = 17:00 UTC -> paper_arxiv_ai_recent
-    if hour == 23:
-        return "ai_watch_daily"
-    elif hour == 17:
-        return "paper_arxiv_ai_recent"
-    else:
-        return "paper_arxiv_ai_recent"
+    for rule in config.get("rules", []):
+        if current_hour in rule.get("hours", []):
+            return rule["preset"]
+    return config.get("default_preset", "paper_arxiv_ai_recent")
 
 
 def _build_summary(report: dict, preset: str) -> dict:
-    """Build summary for Misskey posting."""
     items = report.get("collected_items", [])
     state_ctx = report.get("state_context", {})
     before_count = len(state_ctx.get("before", {}).get("open_tasks", []))
@@ -33,6 +30,8 @@ def _build_summary(report: dict, preset: str) -> dict:
 
     return {
         "preset": preset,
+        "status": report.get("status", "unknown"),
+        "status_reason": report.get("status_reason", []),
         "collected_count": len(items),
         "open_tasks_before": before_count,
         "open_tasks_after": after_count,
@@ -56,7 +55,6 @@ def main() -> None:
     subparsers.add_parser("run-schedule")
     subparsers.add_parser("env-check")
 
-    # Heartbeat command
     heartbeat_parser = subparsers.add_parser("heartbeat")
     heartbeat_parser.add_argument("--preset", default=None, help="Preset to run (auto-select if not specified)")
     heartbeat_parser.add_argument("--max-items", type=int, default=5, help="Max items to collect")
@@ -86,6 +84,7 @@ def main() -> None:
                 "dry_run": True,
                 "preset": preset,
                 "max_items": args.max_items,
+                "timezone": load_heartbeat_config().get("timezone", "Asia/Tokyo"),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             print(json.dumps(output, ensure_ascii=False, indent=2))

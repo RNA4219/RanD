@@ -2,33 +2,47 @@
 
 ## 1. 目的
 
-本書は [requirements.md](/Users/ryo-n/Codex_dev/RanD/docs/requirements.md) と [specification.md](/Users/ryo-n/Codex_dev/RanD/docs/specification.md) に対する受け入れ基準を定義する。
+本書は [requirements.md](requirements.md) と [specification.md](specification.md) に対する受け入れ基準と確認手順を定義する。
 
 ## 2. Acceptance Criteria
 
 | ID | 観点 | 判定方法 |
 | --- | --- | --- |
-| AC-01 | Kestra flow 存在 | `kestra/flows/` に 3 flow が存在する |
-| AC-02 | state-aware 実行 | `report.json` に `state_context.before/after` が含まれる |
-| AC-03 | 既読判定 | 既知 URL を含む入力で `seen_before=true` と `high_priority=false` が確認できる |
-| AC-04 | artifact 完備 | 8 種の artifact が run directory に保存される |
-| AC-05 | env loading | `env-check` で依存 repo と provider 順が確認できる |
-| AC-06 | tracker optionality | tracker 不達でも run 自体は保存される |
-| AC-07 | 文書整合 | `requirements`, `specification`, `architecture` が矛盾しない |
+| AC-01 | installer 可搬性 | `components.json` に絶対ローカルパスが無い |
+| AC-02 | heartbeat 選択 | `heartbeat --dry-run` が preset と timezone を返す |
+| AC-03 | unittest 導線 | `python -m unittest discover tests` が通る |
+| AC-04 | report schema | `report.json` に `schema_version`, `status`, `status_reason`, `state_context`, `artifacts` がある |
+| AC-05 | state_context schema | `state_context.json` に `schema_version`, `before`, `after` がある |
+| AC-06 | memx / tracker schema | root と entry/event に `schema_version` がある |
+| AC-07 | fixture 回帰 | arXiv / RSS / generic link の fixture テストが通る |
+| AC-08 | docs 整合 | README / requirements / specification が heartbeat 規則と status 契約で一致する |
 
 ## 3. 検証コマンド
 
 ```powershell
-cd C:\Users\ryo-n\Codex_dev\RanD\research-runtime
-$env:PYTHONPATH = 'C:\Users\ryo-n\Codex_dev\RanD\research-runtime\src'
+cd research-runtime
 python -m unittest discover tests
+python -m rand_research.cli heartbeat --dry-run --max-items 2
 python -m rand_research.cli env-check
+```
+
+installer の解決確認:
+
+```powershell
+cd ..\r-and-d-agent-installer
+.\scripts\status.ps1
 ```
 
 ## 4. 手動確認項目
 
-- [ ] `README.md` から docs への導線が分かる
-- [ ] `requirements.md` に測定可能な要求がある
-- [ ] `specification.md` に payload / state / flow の仕様がある
-- [ ] `tracker` が state 正本でないことが明記されている
-- [ ] `agent-taskstate` と `memx-resolver` の読み書き境界が明記されている
+- [ ] ルート README 先頭に Quickstart がある
+- [ ] README に heartbeat / preset 選択規則の表がある
+- [ ] README に `status=ok|degraded|failed` と 8 artifact 契約がある
+- [ ] installer README に `CODEX_DEV_ROOT` と override JSON の説明がある
+- [ ] runtime README に単体依存と workspace 依存の説明がある
+- [ ] specification に schema compatibility policy がある
+
+## 5. 残留リスク
+
+- live fetch と live LLM 実行は外部依存に左右されるため、この検収では fixture / local 実行確認を正本とする
+- peer repo 側の API 変更は `env-check` だけでは完全検知できないため、定期的な統合確認が必要

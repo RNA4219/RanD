@@ -3,7 +3,14 @@ name = "rand-research-runtime"
 version = "0.1.0"
 description = "RanD research runtime for papers and AI news"
 requires-python = ">=3.10"
-dependencies = []
+
+[project.optional-dependencies]
+workspace = []
+integrations = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

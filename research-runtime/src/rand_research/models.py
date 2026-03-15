@@ -4,6 +4,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
 
+SCHEMA_VERSION = "1.0"
+
 
 @dataclass
 class NormalizedItem:
@@ -54,6 +56,7 @@ class RunMeta:
     run_id: str
     preset: str
     started_at: str
+    schema_version: str = SCHEMA_VERSION
     finished_at: str | None = None
     prompt_template: str | None = None
     max_items: int = 0
