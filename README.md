@@ -9,29 +9,29 @@
 
 ## 入口
 
-- アーキテクチャ文書: [docs/architecture.md](/Users/ryo-n/Codex_dev/RanD/docs/architecture.md)
-- 要件定義: [docs/requirements.md](/Users/ryo-n/Codex_dev/RanD/docs/requirements.md)
-- 仕様書: [docs/specification.md](/Users/ryo-n/Codex_dev/RanD/docs/specification.md)
-- 受け入れ基準: [docs/evaluation.md](/Users/ryo-n/Codex_dev/RanD/docs/evaluation.md)
-- 導入用リポジトリ: [r-and-d-agent-installer](/Users/ryo-n/Codex_dev/RanD/r-and-d-agent-installer)
-- 調査ランタイム: [research-runtime](/Users/ryo-n/Codex_dev/RanD/research-runtime)
-- Kestra flow 定義: [kestra/README.md](/Users/ryo-n/Codex_dev/RanD/kestra/README.md)
+- アーキテクチャ文書: [docs/architecture.md](docs/architecture.md)
+- 要件定義: [docs/requirements.md](docs/requirements.md)
+- 仕様書: [docs/specification.md](docs/specification.md)
+- 受け入れ基準: [docs/evaluation.md](docs/evaluation.md)
+- 導入用リポジトリ: [r-and-d-agent-installer](r-and-d-agent-installer/README.md)
+- 調査ランタイム: [research-runtime](research-runtime/README.md)
+- Kestra flow 定義: [kestra/README.md](kestra/README.md)
 - ルート入口バッチ:
-  - [install-r-and-d-agent.bat](/Users/ryo-n/Codex_dev/RanD/install-r-and-d-agent.bat)
-  - [run-research-once.bat](/Users/ryo-n/Codex_dev/RanD/run-research-once.bat)
-  - [run-research-schedule.bat](/Users/ryo-n/Codex_dev/RanD/run-research-schedule.bat)
+  - [install-r-and-d-agent.bat](install-r-and-d-agent.bat)
+  - [run-research-once.bat](run-research-once.bat)
+  - [run-research-schedule.bat](run-research-schedule.bat)
 
 ## 文書の読み順
 
 `RanD` の設計と実装の正本は文書ごとに役割を分けています。
 
-- [docs/architecture.md](/Users/ryo-n/Codex_dev/RanD/docs/architecture.md)
+- [docs/architecture.md](docs/architecture.md)
   - 全体アーキテクチャ、構成要素、責務分担
-- [docs/requirements.md](/Users/ryo-n/Codex_dev/RanD/docs/requirements.md)
+- [docs/requirements.md](docs/requirements.md)
   - 何を満たせば運用可能とみなすかの要求と受け入れ条件
-- [docs/specification.md](/Users/ryo-n/Codex_dev/RanD/docs/specification.md)
+- [docs/specification.md](docs/specification.md)
   - データモデル、artifact 契約、Kestra flow、外部 repo 契約
-- [docs/evaluation.md](/Users/ryo-n/Codex_dev/RanD/docs/evaluation.md)
+- [docs/evaluation.md](docs/evaluation.md)
   - 検収時の確認観点と検証手順
 
 設計変更や追加実装を行うときは、基本的に `architecture -> requirements -> specification -> evaluation` の順に整合を確認します。
@@ -52,31 +52,31 @@
 
 `r-and-d-agent-installer` が導入対象として扱う OSS は次のとおりです。
 
-- `open_deep_research`
+- [`open_deep_research`](https://github.com/langchain-ai/open_deep_research)
   - 調査と探索の中核
-- `llm-guard`
+- [`llm-guard`](https://github.com/protectai/llm-guard)
   - 外部入力や出力候補に対するガード層
-- `kestra`
+- [`kestra`](https://github.com/kestra-io/kestra)
   - ワークフロー制御の本体
-- `pulse-kestra`
+- [`pulse-kestra`](https://github.com/RNA4219/pulse-kestra)
   - 外部イベントや heartbeat を Kestra に橋渡しする入口
-- `agent-taskstate`
+- [`agent-taskstate`](https://github.com/RNA4219/agent-taskstate)
   - 実行状態と再開ポイントの保持
-- `experiment-gate`
+- [`experiment-gate`](https://github.com/RNA4219/experiment-gate)
   - Go / Hold / No-Go 判定
-- `ai-product-requirement-document`
+- [`ai-product-requirement-document`](https://github.com/RNA4219/ai-product-requirement-document)
   - 実装ハンドオフ用の PRD 出口
-- `Roadmap-Design-Skill`
+- [`Roadmap-Design-Skill`](https://github.com/RNA4219/Roadmap-Design-Skill)
   - 採択済みテーマを計画へ落とす層
-- `strategy-guided-policy-prompt`
+- [`strategy-guided-policy-prompt`](https://github.com/RNA4219/strategy-guided-policy-prompt)
   - 調査方針と判断方針のガイド
-- `insight-agent`
+- [`insight-agent`](https://github.com/RNA4219/insight-agent)
   - 文書やソースから insight を抽出する層
-- `memx-resolver`
+- [`memx-resolver`](https://github.com/RNA4219/memx-resolver)
   - 参照知識、読了記録、補助コンテキストの層
-- `tracker-bridge-materials`
+- [`tracker-bridge-materials`](https://github.com/RNA4219/tracker-bridge-materials)
   - GitHub Issues / Jira / Linear / Backlog などへの外部同期層
-- `workflow-cookbook`
+- [`workflow-cookbook`](https://github.com/RNA4219/workflow-cookbook)
   - 実行レシピや handoff の補助
 
 ## 実行の全体像
@@ -132,13 +132,13 @@
 
 現在 `RanD` が持つ flow は次の 4 つです。
 
-- [research-manual-run.yaml](/Users/ryo-n/Codex_dev/RanD/kestra/flows/research-manual-run.yaml)
+- [research-manual-run.yaml](kestra/flows/research-manual-run.yaml)
   - webhook で任意 preset を実行する汎用 flow
-- [research-ai-watch-daily.yaml](/Users/ryo-n/Codex_dev/RanD/kestra/flows/research-ai-watch-daily.yaml)
+- [research-ai-watch-daily.yaml](kestra/flows/research-ai-watch-daily.yaml)
   - `ai_watch_daily` を定期起動する schedule flow
-- [research-arxiv-nightly.yaml](/Users/ryo-n/Codex_dev/RanD/kestra/flows/research-arxiv-nightly.yaml)
+- [research-arxiv-nightly.yaml](kestra/flows/research-arxiv-nightly.yaml)
   - `paper_arxiv_ai_recent` を夜間巡回する schedule flow
-- [research-heartbeat.yaml](/Users/ryo-n/Codex_dev/RanD/kestra/flows/research-heartbeat.yaml)
+- [research-heartbeat.yaml](kestra/flows/research-heartbeat.yaml)
   - heartbeat 起点で定期巡回や回復監視へつなぐ flow
 
 ## source と preset
@@ -158,17 +158,17 @@
 
 ## 実行時に使う主なリポジトリ
 
-- `open_deep_research`
+- [`open_deep_research`](https://github.com/langchain-ai/open_deep_research)
   - 調査の入口となる source preset / prompt 管理の前提
-- `insight-agent`
+- [`insight-agent`](https://github.com/RNA4219/insight-agent)
   - 収集した item を構造化して insight を作る
-- `experiment-gate`
+- [`experiment-gate`](https://github.com/RNA4219/experiment-gate)
   - PoC を試す価値があるかを `go / hold / no_go` で判定する
-- `agent-taskstate`
+- [`agent-taskstate`](https://github.com/RNA4219/agent-taskstate)
   - run 状態を `queued / running / done / needs_review / failed` で保持する
-- `memx-resolver`
+- [`memx-resolver`](https://github.com/RNA4219/memx-resolver)
   - 読んだものの要点と artifact 参照を journal として残し、次回 run の既読判定にも使う
-- `tracker-bridge-materials`
+- [`tracker-bridge-materials`](https://github.com/RNA4219/tracker-bridge-materials)
   - gate の推奨アクションを外部トラッカー同期向け payload として残す
 
 ## どこに何が保存されるか
@@ -195,9 +195,9 @@
 
 横断 state は次に保存されます。
 
-- task state: [research-runtime/state/taskstate.json](/Users/ryo-n/Codex_dev/RanD/research-runtime/state/taskstate.json)
-- memx journal: [research-runtime/state/memx-journal.json](/Users/ryo-n/Codex_dev/RanD/research-runtime/state/memx-journal.json)
-- tracker sync log: [research-runtime/state/tracker-sync.json](/Users/ryo-n/Codex_dev/RanD/research-runtime/state/tracker-sync.json)
+- task state: [research-runtime/state/taskstate.json](research-runtime/state/taskstate.json)
+- memx journal: [research-runtime/state/memx-journal.json](research-runtime/state/memx-journal.json)
+- tracker sync log: [research-runtime/state/tracker-sync.json](research-runtime/state/tracker-sync.json)
 
 ## セットアップ
 
@@ -279,6 +279,6 @@ cd C:\Users\ryo-n\Codex_dev\RanD\research-runtime
 
 ## バージョン固定
 
-導入対象の各リポジトリは [components.json](/Users/ryo-n/Codex_dev/RanD/r-and-d-agent-installer/manifests/components.json) の `pinnedCommit` に固定されます。
+導入対象の各リポジトリは [components.json](r-and-d-agent-installer/manifests/components.json) の `pinnedCommit` に固定されます。
 
 つまり、GitHub 側や `Codex_dev` 側のリポジトリが更新されても、`install-r-and-d-agent.bat` が導入する版は変わりません。再現したい構成を壊さずに更新判断できます。
