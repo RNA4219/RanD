@@ -1,0 +1,13 @@
+.DS_Store
+Thumbs.db
+*.log
+
+r-and-d-agent-installer/.installed/
+r-and-d-agent-installer/.cache/
+r-and-d-agent-installer/.venv/
+
+research-runtime/runs/
+research-runtime/state/*.json
+research-runtime/artifacts/
+research-runtime/__pycache__/
+research-runtime/**/*.pyc
