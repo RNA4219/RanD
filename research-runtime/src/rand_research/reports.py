@@ -40,6 +40,7 @@ def save_run_outputs(
                 "run_meta": meta.to_dict(),
                 "collected_items": [item.to_dict() for item in items],
                 "state_context": state_context,
+                "artifacts": {key: str(path) for key, path in paths.items()},
                 "taskstate_refs": [task_record],
                 "memx_refs": [memx_record],
                 "tracker_sync_refs": [tracker_event],
@@ -116,3 +117,4 @@ def render_markdown(
         ]
     )
     return "\n".join(lines)
+
