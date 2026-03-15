@@ -22,11 +22,42 @@
 `RanD` 自体は単独の巨大アプリではありません。実際には次の 2 層を束ねる親リポジトリです。
 
 - 導入層:
-  - `r-and-d-agent-installer` が `open_deep_research`、`insight-agent`、`experiment-gate`、`agent-taskstate`、`memx-resolver`、`tracker-bridge-materials` などを固定コミットで取得します。
+  - `r-and-d-agent-installer` が必要な OSS 群を固定コミットで取得します。
   - 導入先の実体は `r-and-d-agent-installer/.installed/` に置かれ、Git では無視されます。
 - 実行層:
   - `research-runtime` が source preset に従って調査を走らせ、収集・正規化・評価・state 保存までを担当します。
   - 実行成果物は `research-runtime/runs/<run_id>/` に保存されます。
+
+## 導入層に含まれるアプリケーション
+
+`r-and-d-agent-installer` が導入対象として扱う OSS は次のとおりです。
+
+- `open_deep_research`
+  - 調査と探索の中核
+- `llm-guard`
+  - 外部入力や出力候補に対するガード層
+- `kestra`
+  - ワークフロー制御の本体
+- `pulse-kestra`
+  - 外部イベントや heartbeat を Kestra に橋渡しする入口
+- `agent-taskstate`
+  - 実行状態と再開ポイントの保持
+- `experiment-gate`
+  - Go / Hold / No-Go 判定
+- `ai-product-requirement-document`
+  - 実装ハンドオフ用の PRD 出口
+- `Roadmap-Design-Skill`
+  - 採択済みテーマを計画へ落とす層
+- `strategy-guided-policy-prompt`
+  - 調査方針と判断方針のガイド
+- `insight-agent`
+  - 文書やソースから insight を抽出する層
+- `memx-resolver`
+  - 参照知識、読了記録、補助コンテキストの層
+- `tracker-bridge-materials`
+  - GitHub Issues / Jira / Linear / Backlog などへの外部同期層
+- `workflow-cookbook`
+  - 実行レシピや handoff の補助
 
 ## どういう風に動くか
 
@@ -43,6 +74,33 @@
 9. `report.md` と `report.json` を `runs/<run_id>/` に残す
 
 要するに、「集める」だけではなく、「読む価値」「次に何を試すか」「どこへ連携するか」までまとめて 1 run に閉じ込める構成です。
+
+## Kestra を使う場合の流れ
+
+アーキテクチャ上の正規ルートは、ローカル bat 実行よりも `pulse-kestra` と `Kestra` を中核にした流れです。
+
+1. `pulse-kestra` が mention / webhook / cron / heartbeat を受ける
+2. `Kestra` が flow を起動する
+3. 必要なら `llm-guard` で入力をガードする
+4. `open_deep_research` で調査を開始する
+5. `insight-agent` で洞察候補を構造化する
+6. `experiment-gate` で Go / Hold / No-Go を付ける
+7. `Roadmap-Design-Skill` で next actions に落とす
+8. `agent-taskstate` に実行状態を保存する
+9. `tracker-bridge-materials` で外部トラッカーへ同期する
+
+現状の `research-runtime` は、この E2E のうち「調査から state 保存まで」をローカルで先に回せるようにした実装です。つまり今は、
+
+- ローカル即実行の入口:
+  - `run-research-once.bat`
+  - `run-research-schedule.bat`
+- 将来の本来運用の入口:
+  - `pulse-kestra`
+  - `Kestra`
+
+という二段構えになっています。
+
+まだこのリポジトリ内には Kestra flow 定義そのものは置いていません。README 上では「本来のアーキテクチャは Kestra 中心」「現状実装済みなのはローカル実行ランタイム」と読み分けるのが正しいです。
 
 ## source と preset
 
