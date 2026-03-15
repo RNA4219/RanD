@@ -1,6 +1,10 @@
 id: research-arxiv-nightly
 namespace: rand
 
+description: >-
+  Nightly paper watch for `paper_arxiv_ai_recent`. This keeps the high-value paper
+  preset on a predictable schedule while reusing the same manual flow contract.
+
 triggers:
   - id: schedule-trigger
     type: io.kestra.plugin.core.trigger.Schedule

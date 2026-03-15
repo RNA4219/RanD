@@ -1,6 +1,10 @@
 id: research-manual-run
 namespace: rand
 
+description: >-
+  Manual or webhook-driven research run. The caller supplies preset and max_items,
+  and this flow invokes `research-runtime` as a sample orchestration entrypoint.
+
 concurrency:
   behavior: QUEUE
   limit: 2
@@ -11,7 +15,17 @@ triggers:
     key: "{{ secret('RAND_RESEARCH_WEBHOOK_KEY') }}"
 
 variables:
-  runtime_root: "{{ globals.rand_runtime_root | default('C:/Users/ryo-n/Codex_dev/RanD/research-runtime') }}"
+  # Public sample default. Override with Kestra global `rand_runtime_root`
+  # or environment-specific settings instead of editing this file.
+  runtime_root: "{{ globals.rand_runtime_root | default('./research-runtime') }}"
+
+# Webhook body example:
+# {
+#   "event_type": "manual",
+#   "preset": "paper_arxiv_ai_recent",
+#   "max_items": 5,
+#   "source": "kestra.webhook.manual"
+# }
 
 tasks:
   - id: log-request
@@ -21,6 +35,7 @@ tasks:
       - event_type: {{ trigger.body.event_type | default('manual') }}
       - preset: {{ trigger.body.preset | default('paper_arxiv_ai_recent') }}
       - max_items: {{ trigger.body.max_items | default('0') }}
+      - runtime_root: {{ vars.runtime_root }}
 
   - id: run-runtime
     type: io.kestra.plugin.scripts.python.Script
@@ -56,18 +71,20 @@ tasks:
 
       report = json.loads(result.stdout)
       state_context = report.get("state_context", {})
+      output_dir = Path("{{ outputDir }}")
 
-      (Path("{{ outputDir }}") / "report.json").write_text(
+      (output_dir / "report.json").write_text(
           json.dumps(report, ensure_ascii=False, indent=2),
           encoding="utf-8",
       )
-      (Path("{{ outputDir }}") / "state_context.json").write_text(
+      (output_dir / "state_context.json").write_text(
           json.dumps(state_context, ensure_ascii=False, indent=2),
           encoding="utf-8",
       )
 
       print(json.dumps({
           "preset": preset,
+          "status": report.get("status"),
           "collected_count": len(report.get("collected_items", [])),
           "open_tasks_before": len(state_context.get("before", {}).get("open_tasks", [])),
           "open_tasks_after": len(state_context.get("after", {}).get("open_tasks", [])),

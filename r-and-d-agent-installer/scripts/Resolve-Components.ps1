@@ -58,11 +58,34 @@ function Get-LocalPathOverrides {
     return $overrides
 }
 
+function Assert-ComponentSchema {
+    param(
+        [Parameter(Mandatory = $true)]$Component
+    )
+
+    $requiredKeys = @('name', 'layer', 'required', 'remoteUrl', 'installSubdir', 'pinnedCommit')
+    foreach ($key in $requiredKeys) {
+        $value = $Component.$key
+        if ($null -eq $value -or ([string]$value).Trim().Length -eq 0) {
+            throw "Component schema error: '$key' is required for component '$($Component.name)'"
+        }
+    }
+
+    $hasPathKeyPair = -not [string]::IsNullOrWhiteSpace([string]$Component.pathKey) -and -not [string]::IsNullOrWhiteSpace([string]$Component.relativePath)
+    $hasEnvVar = -not [string]::IsNullOrWhiteSpace([string]$Component.envVar)
+
+    if (-not $hasPathKeyPair -and -not $hasEnvVar) {
+        throw "Component schema error: component '$($Component.name)' must define envVar or pathKey + relativePath"
+    }
+}
+
 function Resolve-ComponentPath {
     param(
         [Parameter(Mandatory = $true)]$Component,
         [Parameter(Mandatory = $true)][hashtable]$Overrides
     )
+
+    Assert-ComponentSchema -Component $Component
 
     $resolvedPath = $null
     $resolutionSource = 'remote-only'

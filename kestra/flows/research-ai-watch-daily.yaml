@@ -1,6 +1,10 @@
 id: research-ai-watch-daily
 namespace: rand
 
+description: >-
+  Daily scheduled run for the composed `ai_watch_daily` preset. This flow delegates
+  to `research-manual-run` so the orchestration shape stays easy to read.
+
 triggers:
   - id: schedule-trigger
     type: io.kestra.plugin.core.trigger.Schedule
