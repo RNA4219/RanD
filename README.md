@@ -111,6 +111,12 @@ JSON artifact には `schema_version: "1.0"` を持たせています。`report.
 - tracker sync failure 件数
 - duplicate suppression 件数
 
+## 残留リスク
+
+- live fetch と live LLM 実行は外部依存に左右されるため、通常の受け入れでは fixture / local 実行確認を正本にします。
+- notification / replay / dedupe の実件数は `pulse-kestra` 側の flow output と taskstate 記録に依存します。
+- peer repo 側の API や schema が変わった場合は、`env-check` だけでは完全検知できないため定期的な統合確認が必要です。
+
 ## preset と heartbeat の選択規則
 
 現在の preset は次の 3 つです。

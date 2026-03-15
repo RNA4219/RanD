@@ -88,12 +88,14 @@ def save_run_outputs(
         "status_reason": status_reason,
         "dependency_health": dependency_health,
     }
+    memx_payload = _wrap_single_record("entries", memx_record)
+    tracker_payload = _wrap_single_record("events", tracker_event)
     paths["report_json"].write_text(json.dumps(report_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     paths["insight_json"].write_text(json.dumps(insight_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     paths["gate_json"].write_text(json.dumps(gate_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     paths["meta_json"].write_text(json.dumps(meta_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-    paths["tracker_sync_json"].write_text(json.dumps(tracker_event, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-    paths["memx_journal_json"].write_text(json.dumps(memx_record, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    paths["tracker_sync_json"].write_text(json.dumps(tracker_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    paths["memx_journal_json"].write_text(json.dumps(memx_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     paths["state_context_json"].write_text(json.dumps(state_context, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     paths["report_md"].write_text(render_markdown(meta, items, insight_payload, gate_payload, state_context, status, status_reason, dependency_health), encoding="utf-8")
     return artifacts, report_payload
@@ -167,3 +169,12 @@ def render_markdown(
         ]
     )
     return "\n".join(lines)
+
+
+def _wrap_single_record(key: str, record: dict[str, Any]) -> dict[str, Any]:
+    wrapped_record = dict(record)
+    wrapped_record.setdefault("schema_version", SCHEMA_VERSION)
+    return {
+        "schema_version": SCHEMA_VERSION,
+        key: [wrapped_record],
+    }

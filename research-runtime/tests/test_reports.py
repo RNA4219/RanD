@@ -86,6 +86,16 @@ class ReportsTests(unittest.TestCase):
             self.assertEqual(state_context['before']['known_urls'], ['https://arxiv.org/abs/0'])
             self.assertEqual(state_context['after']['known_urls'], ['https://arxiv.org/abs/0', 'https://arxiv.org/abs/1'])
 
+            memx_json = json.loads((run_dir / 'memx_journal.json').read_text(encoding='utf-8'))
+            self.assertEqual(memx_json['schema_version'], SCHEMA_VERSION)
+            self.assertEqual(memx_json['entries'][0]['schema_version'], SCHEMA_VERSION)
+            self.assertEqual(memx_json['entries'][0]['entry_id'], 'memx-1')
+
+            tracker_json = json.loads((run_dir / 'tracker_sync.json').read_text(encoding='utf-8'))
+            self.assertEqual(tracker_json['schema_version'], SCHEMA_VERSION)
+            self.assertEqual(tracker_json['events'][0]['schema_version'], SCHEMA_VERSION)
+            self.assertEqual(tracker_json['events'][0]['sync_id'], 'sync-1')
+
 
 if __name__ == '__main__':
     unittest.main()

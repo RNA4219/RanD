@@ -103,12 +103,13 @@ def run_insight(items: list[NormalizedItem]) -> dict[str, Any]:
         for item in items:
             payload = build_insight_payload(item)
             results.append(insight_core.run(request_dict=payload))
+        status = _aggregate_nested_status(results)
         return {
             "schema_version": SCHEMA_VERSION,
-            "status": "ok",
+            "status": status,
             "mode": "insight-agent",
             "results": results,
-            "error": None,
+            "error": None if status == "ok" else _summarize_nested_failures("insight", results),
         }
     except Exception as exc:
         return {
@@ -164,12 +165,13 @@ def run_gate(items: list[NormalizedItem], dependency_health: dict[str, str]) -> 
             result = experiment_gate.run_gate(request=request).model_dump()
             result["dependency_health"] = dependency_health
             results.append(result)
+        status = _aggregate_nested_status(results)
         return {
             "schema_version": SCHEMA_VERSION,
-            "status": "ok",
+            "status": status,
             "mode": "experiment-gate",
             "results": results,
-            "error": None,
+            "error": None if status == "ok" else _summarize_nested_failures("gate", results),
             "dependency_health": dependency_health,
         }
     except Exception as exc:
@@ -267,6 +269,45 @@ def check_dependencies() -> dict[str, Any]:
     return report
 
 
+def _aggregate_nested_status(results: list[dict[str, Any]]) -> str:
+    for result in results:
+        if _nested_result_status(result) != "ok":
+            return "degraded"
+    return "ok"
+
+
+def _nested_result_status(result: dict[str, Any]) -> str:
+    if not isinstance(result, dict):
+        return "failed"
+    status = result.get("status")
+    if isinstance(status, str) and status:
+        return status
+    run = result.get("run")
+    if isinstance(run, dict):
+        nested_status = run.get("status")
+        if isinstance(nested_status, str) and nested_status:
+            return nested_status
+    return "ok"
+
+
+def _summarize_nested_failures(kind: str, results: list[dict[str, Any]]) -> str:
+    failures: list[str] = []
+    for result in results:
+        status = _nested_result_status(result)
+        if status == "ok":
+            continue
+        run = result.get("run") if isinstance(result, dict) else None
+        request_id = None
+        if isinstance(run, dict):
+            request_id = run.get("request_id")
+        if not request_id and isinstance(result, dict):
+            request_id = result.get("request_id")
+        failures.append(f"{request_id or 'unknown'}:{status}")
+    if not failures:
+        return f"{kind}_nested_failure"
+    return f"{kind}_nested_failure: {', '.join(failures)}"
+
+
 def _fallback_insight(item: NormalizedItem) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -314,6 +355,9 @@ def _load_log(path: Path, key: str) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     payload.setdefault("schema_version", SCHEMA_VERSION)
     payload.setdefault(key, [])
+    for entry in payload.get(key, []):
+        if isinstance(entry, dict):
+            entry.setdefault("schema_version", SCHEMA_VERSION)
     return payload
 
 
