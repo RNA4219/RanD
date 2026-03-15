@@ -2,16 +2,19 @@ id: research-heartbeat
 namespace: rand
 
 description: >-
-  Sample heartbeat flow for RanD. It auto-selects presets by time window, runs the
-  runtime, and records a summary that can be handed to notifier flows.
+  Manual or event-driven preset selection entrypoint. This flow does not own the
+  schedule window itself; it only resolves a preset from runtime config when the
+  caller does not provide one.
 
-triggers:
-  - id: schedule-trigger
-    type: io.kestra.plugin.core.trigger.Schedule
-    cron: "*/5 * * * *"
+inputs:
+  - id: preset
+    type: STRING
+    required: false
+  - id: max_items
+    type: INT
+    required: false
 
 variables:
-  # Public sample defaults. Override these via Kestra globals per environment.
   runtime_root: "{{ globals.rand_runtime_root | default('./research-runtime') }}"
   kestra_base_url: "{{ globals.kestra_base_url | default('http://localhost:8080') }}"
 
@@ -22,47 +25,49 @@ tasks:
       - heartbeat_config.json
     script: |
       import json
-      from datetime import datetime, timezone
+      from datetime import datetime
+      from pathlib import Path
+      from zoneinfo import ZoneInfo
 
-      now = datetime.now(timezone.utc)
+      config_path = Path(r"{{ vars.runtime_root }}") / "configs" / "heartbeat.json"
+      with open(config_path, encoding="utf-8") as f:
+          heartbeat = json.load(f)
+
+      explicit_preset = "{{ inputs.preset | default('') }}"
+      explicit_max_items = "{{ inputs.max_items | default('') }}"
+      timezone_name = heartbeat.get("timezone", "Asia/Tokyo")
+      now = datetime.now(ZoneInfo(timezone_name))
       hour = now.hour
-      minute = now.minute
-      presets_to_run = []
 
-      # Morning watch in JST (08:00-08:10 JST == 23:00-23:10 UTC previous day)
-      if hour == 23 and 0 <= minute < 10:
-          presets_to_run.append({
-              "preset": "ai_watch_daily",
-              "reason": "scheduled_morning_watch",
-              "max_items": 12
-          })
+      def select_preset(now_hour: int) -> str:
+          for rule in heartbeat.get("rules", []):
+              if now_hour in rule.get("hours", []):
+                  return rule["preset"]
+          return heartbeat.get("default_preset", "paper_arxiv_ai_recent")
 
-      # Night paper watch in JST (02:00-02:10 JST == 17:00-17:10 UTC)
-      if hour == 17 and 0 <= minute < 10:
-          presets_to_run.append({
-              "preset": "paper_arxiv_ai_recent",
-              "reason": "scheduled_night_papers",
-              "max_items": 8
-          })
-
-      is_manual = "{{ trigger.type }}" != "io.kestra.plugin.core.trigger.Schedule"
-      if is_manual:
-          presets_to_run.append({
-              "preset": "{{ trigger.body.preset | default('paper_arxiv_ai_recent') }}",
-              "reason": "manual_trigger",
-              "max_items": int("{{ trigger.body.max_items | default('5') }}")
-          })
+      preset = explicit_preset or select_preset(hour)
+      if explicit_max_items:
+          max_items = int(explicit_max_items)
+      else:
+          max_items = 8 if preset == "paper_arxiv_ai_recent" else 12
 
       output = {
-          "presets_to_run": presets_to_run,
+          "presets_to_run": [
+              {
+                  "preset": preset,
+                  "reason": "manual_trigger" if explicit_preset else "heartbeat_rule",
+                  "max_items": max_items,
+              }
+          ],
           "heartbeat_time": now.isoformat(),
-          "is_manual": is_manual
+          "timezone": timezone_name,
+          "is_manual": True,
       }
 
       with open("{{ outputDir }}/heartbeat_config.json", "w", encoding="utf-8") as f:
           json.dump(output, f, ensure_ascii=False, indent=2)
 
-      print(f"Heartbeat config: {len(presets_to_run)} presets to run")
+      print(json.dumps(output, ensure_ascii=False))
 
   - id: run-research
     type: io.kestra.plugin.scripts.python.Script

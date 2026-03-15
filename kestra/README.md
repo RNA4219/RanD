@@ -7,11 +7,11 @@
 - `research-manual-run.yaml`
   - webhook で任意 preset を実行する汎用 flow
 - `research-ai-watch-daily.yaml`
-  - `ai_watch_daily` を朝に起動する schedule flow
+  - JST 08:00 に `ai_watch_daily` を起動する schedule flow
 - `research-arxiv-nightly.yaml`
-  - `paper_arxiv_ai_recent` を夜に起動する schedule flow
+  - JST 23:00 に `paper_arxiv_ai_recent` を起動する schedule flow
 - `research-heartbeat.yaml`
-  - time window に応じて preset を自動選択し、heartbeat と stuck task 監視を行う flow
+  - event/manual 起点で preset を補完し、runtime 実行と stuck task 監視を行う flow
 
 ## 公開設定 / example / local 設定
 
@@ -50,6 +50,23 @@ kestra_base_url: http://localhost:8080
 }
 ```
 
+`research-heartbeat.yaml` を UI から手動実行する場合は、inputs に次を渡せます。
+
+```yaml
+preset: ai_watch_daily
+max_items: 12
+```
+
+## 役割の分離
+
+- preset 選択規則の正本
+  - `research-runtime/configs/heartbeat.json`
+- 定時実行時刻の正本
+  - `research-ai-watch-daily.yaml`
+  - `research-arxiv-nightly.yaml`
+- manual / event 起点の preset 補完
+  - `research-heartbeat.yaml`
+
 ## 役割
 
 - `pulse-kestra` や外部 webhook から `research-runtime` を呼べるようにする
@@ -61,6 +78,6 @@ kestra_base_url: http://localhost:8080
 - `research-manual-run.yaml`
   - 最小の実行 contract を表す入口 flow
 - `research-ai-watch-daily.yaml`, `research-arxiv-nightly.yaml`
-  - schedule から manual flow を呼ぶ薄い wrapper
+  - `timezone: Asia/Tokyo` を持つ定時実行 wrapper
 - `research-heartbeat.yaml`
-  - 自動選択、summary 生成、stuck task 監視を含む運用寄り sample
+  - schedule を持たない event/manual 補完 flow

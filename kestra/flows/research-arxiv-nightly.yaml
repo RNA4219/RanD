@@ -9,6 +9,7 @@ triggers:
   - id: schedule-trigger
     type: io.kestra.plugin.core.trigger.Schedule
     cron: "0 23 * * *"
+    timezone: "Asia/Tokyo"
 
 tasks:
   - id: trigger-manual-flow

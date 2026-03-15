@@ -106,6 +106,9 @@ heartbeat の自動選択は JST 基準で次の規則です。
 | 21:00-23:59 | `paper_arxiv_ai_recent` |
 | それ以外 | `paper_arxiv_ai_recent` |
 
+- この表は preset 選択規則の正本です。
+- 定時実行の時刻そのものは `kestra/flows/research-ai-watch-daily.yaml` と `kestra/flows/research-arxiv-nightly.yaml` の cron で管理します。
+- `research-heartbeat.yaml` は event/manual 起点で preset を補完するための flow です。
 - CLI で `--preset` を明示した場合は時間帯規則より優先します。
 - 合成 preset では child preset のどれか 1 つでも `degraded` なら親も `degraded`、すべて `failed` なら親も `failed` です。
 

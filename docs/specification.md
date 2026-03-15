@@ -96,6 +96,13 @@ flowchart LR
 | その他 | `paper_arxiv_ai_recent` |
 | CLI で `--preset` 明示 | 明示 preset を最優先 |
 
+補足:
+
+- `configs/heartbeat.json` は時刻に応じた preset 選択規則の正本である。
+- Kestra の定時実行時刻は flow ごとの `Schedule` trigger が持つ。
+- 定時実行 flow は `timezone: "Asia/Tokyo"` を明示する。
+- `research-heartbeat.yaml` は event/manual 起点で preset を補完するための flow であり、定時巡回の正本ではない。
+
 ### 4.4 status 判定
 
 run 全体の `status` は `dependency_health` と `status_reason` から決める。
