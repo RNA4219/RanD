@@ -27,6 +27,7 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
     dependency_health: dict[str, str] = {
         "sources": "ok",
         "state": "ok",
+        "report": "ok",
         "insight": "ok",
         "gate": "ok",
         "memx": "ok",
@@ -130,6 +131,7 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
     gate_dependency_health = {
         "sources": dependency_health["sources"],
         "state": dependency_health["state"],
+        "report": dependency_health["report"],
         "insight": dependency_health["insight"],
     }
     gate_payload = run_gate(items, gate_dependency_health) if runtime["enable_gate"] and preset.get("gate_enabled") else _disabled_payload("gate", dependency_health=gate_dependency_health)
@@ -203,7 +205,7 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
             dependency_health,
         )
     except Exception as exc:
-        dependency_health["state"] = "failed"
+        dependency_health["report"] = "failed"
         status_reasons.append("report_save_failed")
         final_status = "failed"
         task_record = _safe_task_update(
@@ -362,7 +364,12 @@ def _expected_artifacts(run_dir: Path) -> dict[str, str]:
 
 def _final_status(dependency_health: dict[str, str], status_reasons: list[str]) -> str:
     reasons = set(status_reasons)
-    if dependency_health.get("state") == "failed" or dependency_health.get("sources") == "failed" or "report_save_failed" in reasons:
+    if (
+        dependency_health.get("sources") == "failed"
+        or dependency_health.get("state") == "failed"
+        or dependency_health.get("report") == "failed"
+        or "report_save_failed" in reasons
+    ):
         return "failed"
     if any(value != "ok" for value in dependency_health.values()) or reasons:
         return "degraded"

@@ -1,6 +1,6 @@
 # RanD
 
-`RanD` は、R&D Agent アーキテクチャを「導入層」と「実行層」に分けて束ねる親リポジトリです。固定コミットで周辺 OSS を導入し、論文・AI ニュース調査をローカル実行と Kestra 実行の両方で回します。
+`RanD` は、R&D Agent アーキテクチャを「導入層」と「実行層」に分けて束ねる親リポジトリです。固定コミットで周辺 OSS を導入し、論文・AI ニュース調査をローカル実行と Kestra 実行の両方で回しながら、通常運転の正規チェーン `research -> insight -> gate -> sync -> notify` を保つ母艦として振る舞います。
 
 ## Quickstart: 5分で1回回す
 
@@ -54,17 +54,17 @@
 
 1. `install-r-and-d-agent.bat` が導入対象 OSS を pinned commit で配置します。
 2. `run-research-once.bat <preset>` か `run-research-schedule.bat` が `research-runtime` を起動します。
-3. `research-runtime` は `agent-taskstate` 相当の snapshot と `memx-resolver` 相当の journal を読み、同一 preset の過去状態を把握します。
+3. `research-runtime` は `agent-taskstate` を run / state / decision の正本として読み、`memx-resolver` を knowledge / read history の正本として参照します。
 4. source を収集し、`NormalizedItem` に正規化し、既読 URL と重複を整理します。
-5. `insight-agent` と `experiment-gate` を順に呼びます。どちらかが失敗しても artifact 保存は継続しますが、run 全体は `degraded` または `failed` で残します。
-6. `agent-taskstate` 形式の task state、`memx-resolver` 向け journal、`tracker-bridge-materials` 向け sync payload を更新します。
-7. `research-runtime/runs/<run_id>/` に 8 種の artifact を保存します。
+5. `insight-agent` と `experiment-gate` を順に呼び、正規チェーン `research -> insight -> gate -> sync -> notify` に沿って handoff します。replay は途中 stage から再開可能です。
+6. `tracker-bridge-materials` は外部同期 payload の反映先として扱い、`agent-taskstate` 形式の task state、`memx-resolver` 向け journal、`tracker-bridge-materials` 向け sync payload を更新します。
+7. `research-runtime/runs/<run_id>/` に 8 種の artifact を保存し、通知・再送・重複抑止のための集計元フィールドも残します。
 
 ## status と成果物契約
 
 各 run はトップレベル `status` を持ちます。
 
-- `ok`: source / state / integrations がすべて正常
+- `ok`: source / state / report / integrations がすべて正常
 - `degraded`: 一部 source 失敗、Insight/Gate/Memx/Tracker の個別失敗、fallback 利用あり
 - `failed`: source 全滅、state 読み書き失敗、report 保存失敗
 
@@ -85,7 +85,31 @@
 - `tracker_sync.json`
 - `state_context.json`
 
-JSON artifact には `schema_version: "1.0"` を持たせています。`report.json` には最低でも `schema_version`, `status`, `status_reason`, `state_context`, `artifacts`, `dependency_health` が入ります。
+JSON artifact には `schema_version: "1.0"` を持たせています。`report.json` には最低でも `schema_version`, `status`, `status_reason`, `state_context`, `artifacts`, `dependency_health` が入り、`dependency_health.report` によって artifact 保存障害を `state` 障害と分離して観測できます。
+
+## 標準チェーンと責務境界
+
+通常運転の正規経路は `research -> insight -> gate -> sync -> notify` です。
+
+- `RanD` の責務は、この chaining 順序と handoff 契約を束ねることです。
+- replay は途中 stage から再開可能です。
+- `agent-taskstate` は run / state / decision の正本です。
+- `memx-resolver` は knowledge / read history の正本です。
+- `tracker-bridge-materials` は外部同期 payload の反映先です。
+
+## 最小観測点
+
+今の実装では、次の観測点を後から集計できるように field と log を定義しています。
+
+- 日次 run 数
+- `ok / degraded / failed` 件数
+- `report_save_failed` 件数
+- `state_write_failed` 件数
+- replay 実行件数
+- 未通知再送件数
+- notification failure 件数
+- tracker sync failure 件数
+- duplicate suppression 件数
 
 ## preset と heartbeat の選択規則
 
@@ -114,13 +138,13 @@ heartbeat の自動選択は JST 基準で次の規則です。
 
 ## Kestra を使う場合の流れ
 
-正規の E2E は `pulse-kestra -> Kestra -> guard -> research -> insight -> gate -> state/sync` です。
+正規の E2E は `pulse-kestra -> Kestra -> guard -> research -> insight -> gate -> sync -> notify` です。
 
 1. `pulse-kestra` が mention / webhook / cron / heartbeat を受けます。
 2. `Kestra` が flow を起動します。
 3. 必要なら `llm-guard` を入口と出口に挟みます。
 4. `research-runtime` が research 実行を担当します。
-5. `agent-taskstate`, `memx-resolver`, `tracker-bridge-materials` 向けの状態と payload を保存します。
+5. `agent-taskstate`, `memx-resolver`, `tracker-bridge-materials` 向けの状態と payload を保存し、通知段へ handoff します。
 
 現在持っている flow は次の 4 本です。
 

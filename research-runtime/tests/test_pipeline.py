@@ -31,6 +31,19 @@ class PipelineTests(unittest.TestCase):
         dependency_health = {
             "sources": "failed",
             "state": "ok",
+            "report": "ok",
+            "insight": "ok",
+            "gate": "ok",
+            "memx": "ok",
+            "tracker": "ok",
+        }
+        self.assertEqual(_final_status(dependency_health, []), "failed")
+
+    def test_final_status_returns_failed_for_report_failure(self) -> None:
+        dependency_health = {
+            "sources": "ok",
+            "state": "ok",
+            "report": "failed",
             "insight": "ok",
             "gate": "ok",
             "memx": "ok",
@@ -42,6 +55,7 @@ class PipelineTests(unittest.TestCase):
         dependency_health = {
             "sources": "ok",
             "state": "ok",
+            "report": "ok",
             "insight": "degraded",
             "gate": "ok",
             "memx": "ok",

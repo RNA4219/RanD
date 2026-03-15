@@ -52,7 +52,7 @@ class ReportsTests(unittest.TestCase):
                 after,
                 'degraded',
                 ['gate_failed'],
-                {'sources': 'ok', 'state': 'ok', 'insight': 'ok', 'gate': 'degraded', 'memx': 'ok', 'tracker': 'ok'},
+                {'sources': 'ok', 'state': 'ok', 'report': 'ok', 'insight': 'ok', 'gate': 'degraded', 'memx': 'ok', 'tracker': 'ok'},
             )
 
             expected_keys = {
@@ -79,6 +79,7 @@ class ReportsTests(unittest.TestCase):
             self.assertIn('artifacts', report_json)
             self.assertEqual(set(report_json['artifacts'].keys()), expected_keys)
             self.assertEqual(report_json['dependency_health']['gate'], 'degraded')
+            self.assertEqual(report_json['dependency_health']['report'], 'ok')
 
             state_context = json.loads((run_dir / 'state_context.json').read_text(encoding='utf-8'))
             self.assertEqual(state_context['schema_version'], SCHEMA_VERSION)

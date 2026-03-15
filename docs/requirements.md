@@ -9,7 +9,7 @@
 
 ## 1. 目的
 
-RanD は、R&D エージェントを構成する OSS 群を固定コミットで導入し、`research -> insight -> gate -> sync` をローカルまたは Kestra から反復実行するための親リポジトリである。
+RanD は、R&D エージェントを構成する OSS 群を固定コミットで導入し、`research -> insight -> gate -> sync -> notify` をローカルまたは Kestra から反復実行するための親リポジトリである。
 
 本要求定義の目的は次を固定することにある。
 
@@ -17,6 +17,7 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 2. state を読んで次の run に反映できること
 3. 依存失敗を `degraded` / `failed` として明示できること
 4. 成果物 JSON を版管理しながら進化できること
+5. 運用観測点を後から集計できること
 
 ## 2. スコープ
 
@@ -67,6 +68,7 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 | FR-R04 | fallback を返す場合でも run 全体は `degraded` または `failed` を返すこと | `report.json.status` と `status_reason` が存在する |
 | FR-R05 | `ok -> done`, `degraded -> needs_review`, `failed -> failed` の写像を taskstate に保存すること | `taskstate.json` で確認できる |
 | FR-R06 | source 全滅、state 読み書き失敗、report 保存失敗は `failed` で終了すること | unit test または実 run で確認できる |
+| FR-R08 | `dependency_health` は `sources`, `state`, `report`, `insight`, `gate`, `memx`, `tracker` を持ち、`report_save_failed` と `state_write_failed` を区別できること | report schema と unit test で確認できる |
 | FR-R07 | source 一部失敗、Insight/Gate/Memx/Tracker の個別失敗は `degraded` で終了すること | unit test または実 run で確認できる |
 
 ### 4.3 Artifact / Schema
@@ -95,6 +97,7 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 | NFR-02 | README / docs は OS ユーザー固有のローカル絶対パスを含まないこと | 対象文書にユーザー依存のローカル絶対パスがない |
 | NFR-03 | `research-runtime` は単体依存と workspace 依存を分けて説明すること | runtime README に表現がある |
 | NFR-04 | fixture テストを正本にし、live fetch を受け入れ条件にしないこと | evaluation に記載がある |
+| NFR-05 | 最小観測点を後から集計できる field / log 契約を持つこと | README / specification / evaluation に記載がある |
 
 ## 6. 受け入れ条件
 
@@ -105,3 +108,5 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 - AC-05: `state_context.json` に `schema_version`, `before`, `after` が含まれる
 - AC-06: `memx_journal.json` と `tracker_sync.json` の root と entry/event に `schema_version` が入る
 - AC-07: README に Quickstart、heartbeat 選択規則、artifact 契約がある
+- AC-08: README と specification に `research -> insight -> gate -> sync -> notify` の正規チェーンがある
+- AC-09: 最小観測点を後から集計できる field / log 契約が定義されている
