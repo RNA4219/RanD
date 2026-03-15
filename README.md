@@ -12,6 +12,7 @@
 - アーキテクチャ文書: [docs/architecture.md](/Users/ryo-n/Codex_dev/RanD/docs/architecture.md)
 - 導入用リポジトリ: [r-and-d-agent-installer](/Users/ryo-n/Codex_dev/RanD/r-and-d-agent-installer)
 - 調査ランタイム: [research-runtime](/Users/ryo-n/Codex_dev/RanD/research-runtime)
+- Kestra flow 定義: [kestra/README.md](/Users/ryo-n/Codex_dev/RanD/kestra/README.md)
 - ルート入口バッチ:
   - [install-r-and-d-agent.bat](/Users/ryo-n/Codex_dev/RanD/install-r-and-d-agent.bat)
   - [run-research-once.bat](/Users/ryo-n/Codex_dev/RanD/run-research-once.bat)
@@ -26,6 +27,7 @@
   - 導入先の実体は `r-and-d-agent-installer/.installed/` に置かれ、Git では無視されます。
 - 実行層:
   - `research-runtime` が source preset に従って調査を走らせ、収集・正規化・評価・state 保存までを担当します。
+  - `kestra/flows/` は `research-runtime` を Kestra から起動するための flow 定義です。
   - 実行成果物は `research-runtime/runs/<run_id>/` に保存されます。
 
 ## 導入層に含まれるアプリケーション
@@ -61,19 +63,35 @@
 
 ## どういう風に動くか
 
-実行の流れは次のとおりです。
+ローカル実行の流れは次のとおりです。
 
 1. `install-r-and-d-agent.bat` で必要リポジトリを導入する
 2. `run-research-once.bat <preset>` か `run-research-schedule.bat` を起動する
 3. `research-runtime` が preset を読み、対象サイトを巡回する
-4. 収集結果を `NormalizedItem` 形式にそろえ、URL または title ベースで重複除去する
-5. `insight-agent` に渡して洞察候補を作る
-6. `high_priority=true` の候補だけ `experiment-gate` に渡して Go / Hold / No-Go を付ける
-7. `agent-taskstate` 形式の state を更新する
-8. `memx-resolver` 用 journal と `tracker-bridge-materials` 用 sync payload を保存する
-9. `report.md` と `report.json` を `runs/<run_id>/` に残す
+4. 実行前に `agent-taskstate` 相当の task state と `memx-resolver` 相当の journal state を読み、同じ preset の過去 run を把握する
+5. 収集結果を `NormalizedItem` 形式にそろえ、URL または title ベースで重複除去する
+6. 過去に読んだ URL は `seen_before=true` として印付けし、priority と gate 対象を自動で落とす
+7. `insight-agent` に渡して洞察候補を作る
+8. `high_priority=true` の候補だけ `experiment-gate` に渡して Go / Hold / No-Go を付ける
+9. `agent-taskstate` 形式の state を更新する
+10. `memx-resolver` 用 journal と `tracker-bridge-materials` 用 sync payload を保存する
+11. `report.md` と `report.json`、さらに `state_context.json` を `runs/<run_id>/` に残す
 
-要するに、「集める」だけではなく、「読む価値」「次に何を試すか」「どこへ連携するか」までまとめて 1 run に閉じ込める構成です。
+要するに、「集める」だけではなく、「過去に何を読んでどう処理したか」を踏まえて次の run を調整する構成です。
+
+## state をどう使っているか
+
+`research-runtime` は run の前後で state を扱います。
+
+- 実行前:
+  - `research-runtime/state/taskstate.json` を読み、同じ preset の過去 task と未完了 task を把握します
+  - `research-runtime/state/memx-journal.json` を読み、過去 run で読んだ URL を把握します
+- 実行中:
+  - `queued -> running -> done / needs_review` で task state を更新します
+  - 過去に読んだ item には `previously_seen` タグを付け、gate の優先対象から外しやすくします
+- 実行後:
+  - `taskstate.json`、`memx-journal.json`、`tracker-sync.json` を更新します
+  - `runs/<run_id>/state_context.json` に before / after の snapshot を残します
 
 ## Kestra を使う場合の流れ
 
@@ -94,13 +112,14 @@
 - ローカル即実行の入口:
   - `run-research-once.bat`
   - `run-research-schedule.bat`
-- 将来の本来運用の入口:
-  - `pulse-kestra`
-  - `Kestra`
+- Kestra 連携の入口:
+  - [kestra/flows/research-manual-run.yaml](/Users/ryo-n/Codex_dev/RanD/kestra/flows/research-manual-run.yaml)
+  - [kestra/flows/research-ai-watch-daily.yaml](/Users/ryo-n/Codex_dev/RanD/kestra/flows/research-ai-watch-daily.yaml)
+  - [kestra/flows/research-arxiv-nightly.yaml](/Users/ryo-n/Codex_dev/RanD/kestra/flows/research-arxiv-nightly.yaml)
 
 という二段構えになっています。
 
-まだこのリポジトリ内には Kestra flow 定義そのものは置いていません。README 上では「本来のアーキテクチャは Kestra 中心」「現状実装済みなのはローカル実行ランタイム」と読み分けるのが正しいです。
+`research-manual-run.yaml` は webhook で任意 preset を実行する flow です。`research-ai-watch-daily.yaml` と `research-arxiv-nightly.yaml` はそれを schedule から呼ぶ thin flow です。これで Kestra 側からも `research-runtime` を直接起動できます。
 
 ## source と preset
 
@@ -128,7 +147,7 @@
 - `agent-taskstate`
   - run 状態を `queued / running / done / needs_review` で保持する
 - `memx-resolver`
-  - 読んだものの要点と artifact 参照を journal として残す
+  - 読んだものの要点と artifact 参照を journal として残し、次回 run の既読判定にも使う
 - `tracker-bridge-materials`
   - gate の推奨アクションを外部トラッカー同期向け payload として残す
 
@@ -143,6 +162,7 @@
 - `meta.json`
 - `memx_journal.json`
 - `tracker_sync.json`
+- `state_context.json`
 
 横断 state は次に保存されます。
 

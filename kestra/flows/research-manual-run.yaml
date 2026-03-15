@@ -1,0 +1,81 @@
+id: research-manual-run
+namespace: rand
+
+concurrency:
+  behavior: QUEUE
+  limit: 2
+
+triggers:
+  - id: webhook-trigger
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: "{{ secret('RAND_RESEARCH_WEBHOOK_KEY') }}"
+
+variables:
+  runtime_root: "{{ globals.rand_runtime_root | default('C:/Users/ryo-n/Codex_dev/RanD/research-runtime') }}"
+
+tasks:
+  - id: log-request
+    type: io.kestra.plugin.core.log.Log
+    message: |
+      Starting RanD research flow:
+      - event_type: {{ trigger.body.event_type | default('manual') }}
+      - preset: {{ trigger.body.preset | default('paper_arxiv_ai_recent') }}
+      - max_items: {{ trigger.body.max_items | default('0') }}
+
+  - id: run-runtime
+    type: io.kestra.plugin.scripts.python.Script
+    outputFiles:
+      - report.json
+      - state_context.json
+    script: |
+      import json
+      import os
+      import subprocess
+      import sys
+      from pathlib import Path
+
+      runtime_root = Path(r"{{ vars.runtime_root }}")
+      preset = "{{ trigger.body.preset | default('paper_arxiv_ai_recent') }}"
+      max_items = int("{{ trigger.body.max_items | default('0') }}")
+
+      env = os.environ.copy()
+      env["PYTHONPATH"] = str(runtime_root / "src")
+
+      cmd = [sys.executable, "-m", "rand_research.cli", "run-once", "--preset", preset]
+      if max_items > 0:
+          cmd.extend(["--max-items", str(max_items)])
+
+      result = subprocess.run(
+          cmd,
+          cwd=runtime_root,
+          env=env,
+          capture_output=True,
+          text=True,
+          check=True,
+      )
+
+      report = json.loads(result.stdout)
+      state_context = report.get("state_context", {})
+
+      (Path("{{ outputDir }}") / "report.json").write_text(
+          json.dumps(report, ensure_ascii=False, indent=2),
+          encoding="utf-8",
+      )
+      (Path("{{ outputDir }}") / "state_context.json").write_text(
+          json.dumps(state_context, ensure_ascii=False, indent=2),
+          encoding="utf-8",
+      )
+
+      print(json.dumps({
+          "preset": preset,
+          "collected_count": len(report.get("collected_items", [])),
+          "open_tasks_before": len(state_context.get("before", {}).get("open_tasks", [])),
+          "open_tasks_after": len(state_context.get("after", {}).get("open_tasks", [])),
+      }, ensure_ascii=False))
+
+  - id: log-summary
+    type: io.kestra.plugin.core.log.Log
+    message: |
+      RanD research finished.
+      - report: {{ outputs.run-runtime.outputFiles['report.json'] }}
+      - state context: {{ outputs.run-runtime.outputFiles['state_context.json'] }}

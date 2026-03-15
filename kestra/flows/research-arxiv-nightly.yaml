@@ -1,0 +1,26 @@
+id: research-arxiv-nightly
+namespace: rand
+
+triggers:
+  - id: schedule-trigger
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 23 * * *"
+
+tasks:
+  - id: trigger-manual-flow
+    type: io.kestra.plugin.scripts.http.Request
+    uri: "{{ globals.kestra_base_url | default('http://localhost:8080') }}/api/v1/main/executions/webhook/rand/research-manual-run/{{ secret('RAND_RESEARCH_WEBHOOK_KEY') }}"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "event_type": "heartbeat",
+        "preset": "paper_arxiv_ai_recent",
+        "max_items": 8,
+        "source": "kestra.schedule.paper_arxiv_ai_recent"
+      }
+
+  - id: log-trigger
+    type: io.kestra.plugin.core.log.Log
+    message: "Triggered research-manual-run for paper_arxiv_ai_recent preset"

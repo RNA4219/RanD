@@ -5,6 +5,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from rand_research.models import ExecutionContext
+
+
+DONE_STATUSES = {"done", "archived"}
+
 
 def load_taskstate(state_path: Path) -> dict[str, Any]:
     if not state_path.exists():
@@ -15,6 +20,50 @@ def load_taskstate(state_path: Path) -> dict[str, Any]:
 def save_taskstate(state_path: Path, payload: dict[str, Any]) -> None:
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_memx_journal(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"entries": []}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def build_execution_context(
+    state_path: Path,
+    memory_path: Path,
+    preset: str,
+    limit: int = 5,
+) -> ExecutionContext:
+    task_payload = load_taskstate(state_path)
+    memory_payload = load_memx_journal(memory_path)
+
+    preset_tasks = [task for task in task_payload.get("tasks", []) if task.get("preset") == preset]
+    preset_tasks.sort(key=lambda task: _sort_key(task.get("updated_at")), reverse=True)
+
+    recent_tasks = [_task_digest(task) for task in preset_tasks[:limit]]
+    open_tasks = [_task_digest(task) for task in preset_tasks if task.get("status") not in DONE_STATUSES][:limit]
+
+    preset_entries = [entry for entry in memory_payload.get("entries", []) if entry.get("scope") == f"rand:{preset}"]
+    preset_entries.sort(key=lambda entry: _sort_key(entry.get("recorded_at")), reverse=True)
+    recent_memory_entries = [_memory_digest(entry) for entry in preset_entries[:limit]]
+
+    known_urls: list[str] = []
+    seen_urls: set[str] = set()
+    for entry in preset_entries:
+        for source in entry.get("sources", []):
+            if not source or source in seen_urls:
+                continue
+            seen_urls.add(source)
+            known_urls.append(source)
+
+    return ExecutionContext(
+        preset=preset,
+        previous_run_count=len(preset_tasks),
+        known_urls=known_urls,
+        recent_tasks=recent_tasks,
+        open_tasks=open_tasks,
+        recent_memory_entries=recent_memory_entries,
+    )
 
 
 def upsert_task_record(
@@ -48,3 +97,26 @@ def upsert_task_record(
     )
     save_taskstate(state_path, payload)
     return record
+
+
+def _task_digest(task: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "task_id": task.get("task_id"),
+        "run_id": task.get("run_id"),
+        "status": task.get("status"),
+        "updated_at": task.get("updated_at"),
+        "summary": task.get("summary"),
+    }
+
+
+def _memory_digest(entry: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "entry_id": entry.get("entry_id"),
+        "recorded_at": entry.get("recorded_at"),
+        "summary": entry.get("summary"),
+        "sources": entry.get("sources", [])[:5],
+    }
+
+
+def _sort_key(value: str | None) -> str:
+    return value or ""

@@ -16,6 +16,8 @@ def save_run_outputs(
     task_record: dict[str, Any],
     memx_record: dict[str, Any],
     tracker_event: dict[str, Any],
+    pre_state_context: dict[str, Any],
+    post_state_context: dict[str, Any],
 ) -> dict[str, str]:
     run_dir.mkdir(parents=True, exist_ok=True)
     paths = {
@@ -26,12 +28,18 @@ def save_run_outputs(
         "meta_json": run_dir / "meta.json",
         "tracker_sync_json": run_dir / "tracker_sync.json",
         "memx_journal_json": run_dir / "memx_journal.json",
+        "state_context_json": run_dir / "state_context.json",
+    }
+    state_context = {
+        "before": pre_state_context,
+        "after": post_state_context,
     }
     paths["report_json"].write_text(
         json.dumps(
             {
                 "run_meta": meta.to_dict(),
                 "collected_items": [item.to_dict() for item in items],
+                "state_context": state_context,
                 "taskstate_refs": [task_record],
                 "memx_refs": [memx_record],
                 "tracker_sync_refs": [tracker_event],
@@ -47,17 +55,33 @@ def save_run_outputs(
     paths["meta_json"].write_text(json.dumps(meta.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
     paths["tracker_sync_json"].write_text(json.dumps(tracker_event, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     paths["memx_journal_json"].write_text(json.dumps(memx_record, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-    paths["report_md"].write_text(render_markdown(meta, items, insight_payload, gate_payload), encoding="utf-8")
+    paths["state_context_json"].write_text(json.dumps(state_context, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    paths["report_md"].write_text(render_markdown(meta, items, insight_payload, gate_payload, state_context), encoding="utf-8")
     return {key: str(path) for key, path in paths.items()}
 
 
-def render_markdown(meta: RunMeta, items: list[NormalizedItem], insight_payload: dict[str, Any], gate_payload: dict[str, Any]) -> str:
+def render_markdown(
+    meta: RunMeta,
+    items: list[NormalizedItem],
+    insight_payload: dict[str, Any],
+    gate_payload: dict[str, Any],
+    state_context: dict[str, Any],
+) -> str:
+    before = state_context.get("before", {})
+    after = state_context.get("after", {})
     lines = [
         f"# Research Report: {meta.preset}",
         "",
         f"- Run ID: `{meta.run_id}`",
         f"- Started: `{meta.started_at}`",
         f"- Finished: `{meta.finished_at or 'running'}`",
+        "",
+        "## State Context",
+        "",
+        f"- Prior runs for preset: `{before.get('previous_run_count', 0)}`",
+        f"- Known URLs before run: `{len(before.get('known_urls', []))}`",
+        f"- Open tasks before run: `{len(before.get('open_tasks', []))}`",
+        f"- Open tasks after run: `{len(after.get('open_tasks', []))}`",
         "",
         "## Top Items",
         "",
@@ -70,6 +94,7 @@ def render_markdown(meta: RunMeta, items: list[NormalizedItem], insight_payload:
                 f"- Kind: `{item.kind}`",
                 f"- Priority: `{item.priority}`",
                 f"- High Priority: `{item.high_priority}`",
+                f"- Seen Before: `{item.metadata.get('seen_before', False)}`",
                 f"- Published: `{item.published_at or 'unknown'}`",
                 f"- Authors: {', '.join(item.authors) or 'unknown'}",
                 f"- Summary: {item.summary or 'n/a'}",

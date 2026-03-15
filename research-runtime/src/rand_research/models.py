@@ -27,6 +27,29 @@ class NormalizedItem:
 
 
 @dataclass
+class ExecutionContext:
+    preset: str
+    previous_run_count: int = 0
+    known_urls: list[str] = field(default_factory=list)
+    recent_tasks: list[dict[str, Any]] = field(default_factory=list)
+    open_tasks: list[dict[str, Any]] = field(default_factory=list)
+    recent_memory_entries: list[dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "preset": self.preset,
+            "previous_run_count": self.previous_run_count,
+            "known_url_count": len(self.known_urls),
+            "recent_task_count": len(self.recent_tasks),
+            "open_task_count": len(self.open_tasks),
+            "recent_memory_entry_count": len(self.recent_memory_entries),
+        }
+
+
+@dataclass
 class RunMeta:
     run_id: str
     preset: str
@@ -37,6 +60,7 @@ class RunMeta:
     save_dir: str = ""
     errors: list[str] = field(default_factory=list)
     target_sites: list[str] = field(default_factory=list)
+    state_context_summary: dict[str, Any] = field(default_factory=dict)
 
     def finish(self) -> None:
         self.finished_at = datetime.utcnow().isoformat() + "Z"
