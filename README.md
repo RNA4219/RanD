@@ -87,6 +87,19 @@
 
 JSON artifact には `schema_version: "1.0"` を持たせています。`report.json` には最低でも `schema_version`, `status`, `status_reason`, `state_context`, `artifacts`, `dependency_health` が入り、`dependency_health.report` によって artifact 保存障害を `state` 障害と分離して観測できます。
 
+## KanoMode とは
+
+KanoMode は、通常の調査 run で集めた evidence や fixture evidence を、要件定義に使える形へ変換する RanD の要求分析モードです。検索証拠をそのまま要件にせず、Kano 分類を挟むことで「無いと不満になる当たり前品質」「良いほど満足が上がる比較品質」「あるとうれしい魅力品質」「不要または逆効果の品質」を分けます。
+
+KanoMode には 2 つの使い方があります。
+
+- Discovery mode
+  - 新しい要求や調査テーマから、要件候補、KPI 草案、受け入れ条件、リスク、downstream hook を含む `requirements_packet.json` を生成します。
+- Audit mode
+  - 既存の要件定義を再評価し、価値妥当性、検収可能性、実装整合性を `go / conditional_go / no_go` で見える化した `requirements_audit_packet.json` を生成します。
+
+つまり KanoMode は、要件を「書いたら終わり」にせず、証拠、ユーザー期待、検収可能性、実装整合性で見直すための入口です。生成された packet は `workflow-cookbook` の Task Seed / Acceptance / Evidence、`manual-bb-test-harness` の手動検収観点、`code-to-gate` の実装整合確認へ渡す前提で設計しています。
+
 KanoMode preset では、通常の 8 artifact に加えて次を保存します。
 
 - `kano.json`

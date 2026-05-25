@@ -119,6 +119,16 @@ state ファイルは atomic write で更新します。途中失敗で壊れた
 
 すべての JSON artifact は `schema_version: "1.0"` を持ちます。
 
+## KanoMode
+
+KanoMode は、収集済み evidence や fixture evidence を要求定義向けの artifact に変換する実行モードです。通常の research chain を壊さず、`research -> insight -> gate -> sync -> notify` の流れに追加 artifact を載せます。
+
+Discovery mode では、complaints / praise / compare / expectation などの Kano 信号をもとに要件候補を分類し、`requirements_packet.json` を生成します。この packet は、要求文、KPI、受け入れ条件、リスク、手動 BB 観点、downstream hook、gate policy を含みます。
+
+Audit mode では、既存要件定義を監査対象として読み、各要件を Kano 再分類、検収可能性、実装整合性、残リスクで評価します。結果は `requirements_audit_packet.json` に保存し、Requirement Definition Gate の `go / conditional_go / no_go` 判定として扱います。
+
+KanoMode の受け入れでは live web search を必須にしません。再現性のある fixture / cached corpus による offline eval を正本にし、live search は pilot / shadow eval として扱います。
+
 KanoMode discovery preset では、上記に加えて次を保存します。
 
 - `kano.json`
