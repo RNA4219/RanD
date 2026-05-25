@@ -30,7 +30,8 @@
   - notify 段への handoff
 - 出力
   - `runs/<run_id>/` の 8 artifact
-  - KanoMode preset では追加で `kano.json` と `requirements_packet.json`
+  - KanoMode discovery preset では追加で `kano.json` と `requirements_packet.json`
+  - KanoMode audit preset では追加で `kano.json` と `requirements_audit_packet.json`
   - `state/` 配下の更新済み snapshot
 
 ## 依存の考え方
@@ -91,6 +92,8 @@ LLM timeout は最低 600 秒、収集 timeout は最低 180 秒へ底上げし�
   - `report.json`
   を保存します。
 
+state ファイルは atomic write で更新します。途中失敗で壊れた JSON が残ると次回 run の `state_write_failed` につながるため、書き込みは一時ファイル経由で完了させます。
+
 ## 標準チェーン
 
 通常運転の正規経路は `research -> insight -> gate -> sync -> notify` です。`research-runtime` はこのうち `research`, `insight`, `gate`, `sync` までを担当し、replay は途中 stage から再開可能な前提で artifact と state を保存します。
@@ -116,12 +119,20 @@ LLM timeout は最低 600 秒、収集 timeout は最低 180 秒へ底上げし�
 
 すべての JSON artifact は `schema_version: "1.0"` を持ちます。
 
-KanoMode preset では、上記に加えて次を保存します。
+KanoMode discovery preset では、上記に加えて次を保存します。
 
 - `kano.json`
   - evidence cluster、Kano 分類、persona votes、confidence、bias_note、kill_condition
 - `requirements_packet.json`
   - requirements、KPI、acceptance、risks、downstream_hooks、gate_policy
+
+KanoMode audit preset では、上記に加えて次を保存します。
+
+- `kano.json`
+  - audit evidence をもとにした Kano 再分類と gatekeeper vote
+- `requirements_audit_packet.json`
+  - 既存要件ごとの `testability`, `implementation_alignment`, `issues`, `suggested_action`, `gate_verdict`
+  - `gate_summary` に `go / conditional_go / no_go` の分布と overall assessment
 
 ## 最小観測点
 
@@ -141,15 +152,16 @@ KanoMode preset では、上記に加えて次を保存します。
 
 ## preset と heartbeat
 
-preset は次の 5 つです。
+preset は次の 6 つです。
 
 - `paper_arxiv_ai_recent`
 - `ai_news_official`
 - `ai_watch_daily`
 - `kano_requirements_hybrid`
 - `kano_requirements_offline_eval`
+- `kano_requirements_audit`
 
-KanoMode の通常検証では live web search を必須にせず、`kano_requirements_offline_eval` の fixture / cached corpus を正本にします。
+KanoMode の通常検証では live web search を必須にせず、`kano_requirements_offline_eval` と `kano_requirements_audit` の fixture / cached corpus を正本にします。
 
 heartbeat の自動選択は `configs/heartbeat.json` を正本にします。現在のルールは JST 基準で次です。
 
@@ -168,4 +180,14 @@ python -m unittest discover tests
 python -m rand_research.cli heartbeat --dry-run --max-items 2
 python -m rand_research.cli env-check
 python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
+python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5
 ```
+
+Windows 環境で `python` が Windows Store stub に当たる場合は、`uv run python` に置き換えて実行します。
+
+2026-05-26 時点の KanoMode MVP 検証結果:
+
+- unittest: 35 tests OK
+- discovery offline eval: `status: ok`
+- audit offline eval: `status: ok`
+- artifact generation: `kano.json`, `requirements_packet.json`, `requirements_audit_packet.json`

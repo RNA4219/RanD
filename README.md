@@ -87,6 +87,21 @@
 
 JSON artifact には `schema_version: "1.0"` を持たせています。`report.json` には最低でも `schema_version`, `status`, `status_reason`, `state_context`, `artifacts`, `dependency_health` が入り、`dependency_health.report` によって artifact 保存障害を `state` 障害と分離して観測できます。
 
+KanoMode preset では、通常の 8 artifact に加えて次を保存します。
+
+- `kano.json`
+  - evidence cluster、Kano 分類、persona votes、confidence、bias_note、kill_condition を保持します。
+- `requirements_packet.json`
+  - discovery mode の主契約です。requirements、KPI、acceptance、risks、downstream_hooks、gate_policy を保持します。
+- `requirements_audit_packet.json`
+  - audit mode の主契約です。既存要件ごとの Kano 再分類、testability、implementation_alignment、issues、suggested_action、gate verdict、gate_summary を保持します。
+
+KanoMode の詳細な要件・仕様・検収記録は次を正本にします。
+
+- [KanoMode 要件定義](docs/requirements_kano_mode.md)
+- [KanoMode 仕様書](docs/specification_kano_mode.md)
+- [KanoMode 引継ぎ資料](docs/kano_mode_handoff.md)
+
 ## 標準チェーンと責務境界
 
 通常運転の正規経路は `research -> insight -> gate -> sync -> notify` です。
@@ -119,7 +134,7 @@ JSON artifact には `schema_version: "1.0"` を持たせています。`report.
 
 ## preset と heartbeat の選択規則
 
-現在の preset は次の 5 つです。
+現在の preset は次の 6 つです。
 
 - `paper_arxiv_ai_recent`
   - [arXiv cs.AI recent](https://arxiv.org/list/cs.AI/recent) を主入口にし、Hugging Face Papers と Papers with Code を補助ソースに使います。
@@ -131,6 +146,8 @@ JSON artifact には `schema_version: "1.0"` を持たせています。`report.
   - KanoMode の query family から要求候補 evidence seed を生成し、`kano.json` と `requirements_packet.json` を保存します。
 - `kano_requirements_offline_eval`
   - fixture evidence だけで KanoMode の artifact 契約を検証する再現性重視の preset です。
+- `kano_requirements_audit`
+  - 既存要件定義の監査用 preset です。fixture evidence から `kano.json` と `requirements_audit_packet.json` を生成し、Requirement Definition Gate の `go / conditional_go / no_go` 分布を確認します。
 
 heartbeat の自動選択は JST 基準で次の規則です。
 
@@ -203,3 +220,29 @@ KanoMode の offline eval を回す:
 cd research-runtime
 python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 ```
+
+KanoMode の audit eval を回す:
+
+```powershell
+cd research-runtime
+python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5
+```
+
+Windows 環境で `python` が Windows Store stub に当たる場合は、`uv run python` で同じコマンドを実行してください。
+
+## KanoMode MVP 検証状況
+
+2026-05-26 時点で、Discovery mode と Audit mode は実装済みです。
+
+検証済み:
+
+- `uv run python -m unittest discover tests`
+  - `35 tests OK`
+- `uv run python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5`
+  - `status: ok`
+  - `kano.json` と `requirements_packet.json` を生成
+- `uv run python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5`
+  - `status: ok`
+  - `kano.json` と `requirements_audit_packet.json` を生成
+
+state 保存は atomic write に対応済みです。破損した state ファイルによる `state_write_failed` が再発した場合は、[RUNBOOK.md](RUNBOOK.md) と [KanoMode 引継ぎ資料](docs/kano_mode_handoff.md) の検証記録を確認してください。
