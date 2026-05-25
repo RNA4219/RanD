@@ -128,9 +128,15 @@ Discovery mode と Audit mode の実装が完了。
 ### 検証結果
 
 - unittest: 35 tests OK
-- discovery offline eval: OK
-- audit offline eval: OK
+- discovery offline eval: OK (`status: ok`)
+- audit offline eval: OK (`status: ok`)
 - artifact schema validation: OK
+
+### 修正履歴
+
+- **2026-05-26**: atomic write対策追加（state file corruption防止）
+  - state_store.py: `_atomic_write`追加
+  - integrations.py: `_write_json`をatomic writeに変更
 
 ### 残課題
 
@@ -139,7 +145,7 @@ Discovery mode と Audit mode の実装が完了。
 - audit preset の prompt template (`kano_audit_prompt.md`) 作成（現状は空でも動作）
 - Requirement Definition Gate の外部連携（RanD側判定のみ実装済み）
 
-## 6. 残課題
+## 7. 文書上の残課題
 
 文書実装として次を優先する。
 

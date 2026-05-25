@@ -22,8 +22,9 @@ KanoMode は、まずドキュメント実装として進める。
 - 勝手に revert しない。
 - 続きを実装する場合は、ユーザーに「コード実装へ進む」確認を取る。
 - 文書だけ整える場合は、`docs/requirements_kano_mode.md`、`docs/tasks/`、`docs/kano_mode_handoff.md` を中心に更新する。
-- **[2026-05-26 実装完了]** Discovery mode と Audit mode の実装が完了し、commit済み (`b8db672`)。
-- offline eval で `kano.json`、`requirements_packet.json`、`requirements_audit_packet.json` が生成されることを確認済み。
+- **[2026-05-26 実装完了]** Discovery mode と Audit mode の実装が完了し、commit済み (`ef89f64`)。
+- **[2026-05-26 修正完了]** atomic write対策追加（state file corruption防止）。
+- offline eval で `kano.json`、`requirements_packet.json`、`requirements_audit_packet.json` が生成され、`status: ok` になることを確認済み。
 - unittest 35 tests OK。
 
 ## 4. 検証済みコマンド
