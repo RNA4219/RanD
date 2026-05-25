@@ -20,6 +20,7 @@ next_review_due: 2026-06-09
 4. `docs/tasks/TASK-20260526-01-kano-mode-p0.md`
 5. `docs/evaluation.md`
 6. `docs/kano_mode_handoff.md`
+7. `docs/kano_mode_next_steps.md`
 
 ## 最重要ルール
 
@@ -79,3 +80,6 @@ KanoMode について、次の文書は作成済みである。
 2. `docs/specification_kano_mode.md` の artifact fields と `docs/evaluation.md` の AC-K を突き合わせる。
 3. Acceptance Record を RanD 側に作るか、workflow-cookbook 参照に留めるかを決める。
 4. 先行コード差分を正式採用する場合のレビュー観点を Task Seed に追加する。
+5. 既存要件監査を扱う場合は、`TASK-20260526-05-kano-audit-mode.md` を起点に `requirements_audit_packet.json` と Requirement Definition Gate を整備する。
+6. Audit mode の次作業単位は TASK-20260526-05-1 / 05-2 / 05-3 に分割されている。各 seed の進行順序は 05-1 → 05-2 → 05-3。
+7. 実装へ進む前に `docs/kano_mode_next_steps.md` の判断表を更新し、ユーザー確認が必要な項目を分離する。

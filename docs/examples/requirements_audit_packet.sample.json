@@ -1,0 +1,133 @@
+{
+  "schema_version": "1.0",
+  "document_id": "REQDOC-20260526-001",
+  "summary": "RanD KanoMode機能要件定義の監査サンプル。3要件を含み、go/conditional_go/no_goの判定例を示す。",
+  "requirements": [
+    {
+      "requirement_id": "REQ-001",
+      "original_text": "KanoModeはpresetから起動でき、query familyからevidenceを収集し、kano.jsonとrequirements_packet.jsonを生成する。",
+      "kano_estimate": "must_be",
+      "confidence": 0.92,
+      "evidence": [
+        {
+          "evidence_id": "EV-001",
+          "source_type": "complaints",
+          "source_tier": "user_signal",
+          "source_ref": "fixture://audit/user-complaint-setup",
+          "summary": "preset実行導線がないと調査開始できない",
+          "weight": 0.88,
+          "freshness_days": 15,
+          "locale": "ja-JP"
+        },
+        {
+          "evidence_id": "EV-002",
+          "source_type": "official",
+          "source_tier": "primary",
+          "source_ref": "docs://specification_kano_mode.md",
+          "summary": "仕様書でpreset-driven実行を定義",
+          "weight": 0.95,
+          "freshness_days": 1,
+          "locale": "ja-JP"
+        }
+      ],
+      "testability": "high",
+      "implementation_alignment": "high",
+      "risks": [
+        "preset schema変更で既存presetが壊れる可能性"
+      ],
+      "issues": [],
+      "suggested_action": "維持。既存unittestでcoverage確認済み。",
+      "gate_verdict": "go"
+    },
+    {
+      "requirement_id": "REQ-002",
+      "original_text": "KanoModeはconfidence, bias_note, kill_conditionが欠ける候補をrequirements_packetに昇格させない。",
+      "kano_estimate": "must_be",
+      "confidence": 0.78,
+      "evidence": [
+        {
+          "evidence_id": "EV-003",
+          "source_type": "official",
+          "source_tier": "primary",
+          "source_ref": "docs://requirements_kano_mode.md",
+          "summary": "FR-K10で安全field必須化を定義",
+          "weight": 0.90,
+          "freshness_days": 1,
+          "locale": "ja-JP"
+        }
+      ],
+      "testability": "high",
+      "implementation_alignment": "medium",
+      "risks": [
+        "validationロジックの実装が未完了",
+        "test caseで欠損パターンを網羅していない"
+      ],
+      "issues": [
+        "acceptance_criteriaが観測可能でない（具体的な欠損パターンが未定義）",
+        "KPI草案がない"
+      ],
+      "suggested_action": "validation test追加。欠損パターンfixture作成。",
+      "gate_verdict": "conditional_go"
+    },
+    {
+      "requirement_id": "REQ-003",
+      "original_text": "KanoModeはattractive要件をmust_be扱いして、hard_gateに写像できる。",
+      "kano_estimate": "attractive",
+      "confidence": 0.45,
+      "evidence": [
+        {
+          "evidence_id": "EV-004",
+          "source_type": "praise",
+          "source_tier": "user_signal",
+          "source_ref": "fixture://audit/user-praise-attractive-feature",
+          "summary": "あるとうれしい機能の称賛",
+          "weight": 0.60,
+          "freshness_days": 30,
+          "locale": "ja-JP"
+        }
+      ],
+      "testability": "low",
+      "implementation_alignment": "low",
+      "risks": [
+        "attractiveをmust_be扱いすると過剰なhard_gateが発生",
+        "gate overreachのリスク"
+      ],
+      "issues": [
+        "元要件のKano分類が誤り（attractiveをmust_be扱い）",
+        "gate_policy計算ロジックが仕様と矛盾",
+        "検収条件が観測不能"
+      ],
+      "suggested_action": "再分類。gate_policyをsoft_experiment_gateに修正。要件文を改訂。",
+      "gate_verdict": "no_go"
+    }
+  ],
+  "gate_summary": {
+    "go": 1,
+    "conditional_go": 1,
+    "no_go": 1,
+    "total": 3,
+    "verdict_distribution": {
+      "go": ["REQ-001"],
+      "conditional_go": ["REQ-002"],
+      "no_go": ["REQ-003"]
+    },
+    "overall_assessment": "conditional_go",
+    "overall_reason": "1件no_goあり。attractiveのmust_be誤扱いを修正後に再監査推奨。"
+  },
+  "source_refs": {
+    "audited_document": "docs://examples/requirements_audit_packet.sample.json",
+    "external_evidence": [
+      "fixture://audit/user-complaint-setup",
+      "fixture://audit/user-praise-attractive-feature"
+    ],
+    "implementation_evidence": [
+      "docs://specification_kano_mode.md",
+      "docs://requirements_kano_mode.md"
+    ]
+  },
+  "assumptions": [
+    "sampleは仕様理解用であり、実装fixtureではない",
+    "external evidenceは架空例",
+    "implementation_alignmentは文書ベースの推定"
+  ]
+}

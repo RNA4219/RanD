@@ -87,7 +87,7 @@ uv run python -m unittest discover tests
 結果:
 
 ```text
-Ran 29 tests in 2.622s
+Ran 35 tests in 2.492s
 OK
 ```
 
@@ -96,14 +96,48 @@ OK
 ```powershell
 cd research-runtime
 uv run python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
+uv run python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5
 ```
 
 確認結果:
 
-- `status: ok`
-- `kano_json` artifact path が report に含まれる
-- `requirements_packet_json` artifact path が report に含まれる
-- `requirements_packet.requirements` に `must_be` と `attractive` の候補が出る
+- Discovery mode: `status: ok`、`kano.json`、`requirements_packet.json` 生成
+- Audit mode: `status: ok`、`kano.json`、`requirements_audit_packet.json` 生成
+- gate_summary: go=1, conditional_go=1, no_go=1（仕様7節と一致）
+- artifact fields: 仕様6.3/6.4/6.5節の必須fieldsを持つ
+
+## 6. 2026-05-26 実装完了記録
+
+Discovery mode と Audit mode の実装が完了。
+
+### 実装内容
+
+| 項目 | 状態 | 正本 |
+| --- | --- | --- |
+| kano.py discovery helper | 実装済み | `research-runtime/src/rand_research/kano.py` |
+| kano.py audit helper | 実装済み | `research-runtime/src/rand_research/kano.py` |
+| pipeline.py mode分岐 | 実装済み | `research-runtime/src/rand_research/pipeline.py` |
+| fetchers.py audit fetcher | 実装済み | `research-runtime/src/rand_research/fetchers.py` |
+| discovery preset | 実装済み | `kano_requirements_hybrid.json`, `kano_requirements_offline_eval.json` |
+| audit preset | 実装済み | `kano_requirements_audit.json` |
+| discovery fixture | 実装済み | `tests/fixtures/kano_evidence.json` |
+| audit fixture | 审装済み | `tests/fixtures/audit_evidence.json` |
+| discovery tests | 実装済み | `tests/test_kano.py` |
+| audit tests | 実装済み | `tests/test_kano.py` |
+
+### 検証結果
+
+- unittest: 35 tests OK
+- discovery offline eval: OK
+- audit offline eval: OK
+- artifact schema validation: OK
+
+### 残課題
+
+- live web search 連携の検証（shadow eval）
+- manual-bb-test-harness / code-to-gate 連携の実装確認
+- audit preset の prompt template (`kano_audit_prompt.md`) 作成（現状は空でも動作）
+- Requirement Definition Gate の外部連携（RanD側判定のみ実装済み）
 
 ## 6. 残課題
 
@@ -119,6 +153,15 @@ uv run python -m rand_research.cli run-once --preset kano_requirements_offline_e
 - Task分割の正式採用判断（ユーザー確認待ち）
 - 先行コード差分の正式採用判断（ユーザー確認待ち）
 - lockfile (`uv.lock`) の採用判断（ユーザー確認待ち）
+- **[2026-05-26追加]** audit mode AC番号整理完了。requirements側AC-K11/K12を削除し、evaluation.md AC-K07~K09参照に変更。
+- **[2026-05-26追加]** TASK-20260526-05を05-1/05-2/05-3に分割追記。文書上の正式進行単位。
+- **[2026-05-26未着手]** audit mode コード実装（ユーザー確認待ち）
+- **[2026-05-26追加]** requirements_audit_packet.json sample artifact作成済み。
+  - [docs/examples/requirements_audit_packet.sample.json](examples/requirements_audit_packet.sample.json)
+  - 仕様理解用sample。実装fixtureではない。
+  - go/conditional_go/no_goの3要件例を含む。
+- **[2026-05-26追加]** 次工程の判断表を [kano_mode_next_steps.md](kano_mode_next_steps.md) に整理した。
+- **[2026-05-26未着手]** requirements_audit_packet.json sample の実装 fixture 昇格（ユーザー確認待ち）
 
 ## 7. 次に触ってよい範囲
 

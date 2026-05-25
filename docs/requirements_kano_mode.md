@@ -23,6 +23,11 @@ RanD に KanoMode を追加し、既存の `research -> insight -> gate -> sync 
 
 本要件定義の目的は、調査レポートである [requirements_2.md](requirements_2.md) を実装可能な契約へ圧縮し、`workflow-cookbook` の Task Seed / Acceptance / Evidence 運用に載せることである。
 
+KanoMode は次の 2 モードを持つ。
+
+- `kano_discovery_mode`: 新規要求や調査テーマから要件候補を起こす。
+- `kano_audit_mode`: 既存の要件定義を監査し、価値妥当性、検収可能性、実装整合性のゲートへ渡す。
+
 ## 2. 問題定義
 
 現在の RanD は、preset に基づく research runtime、`insight-agent` 連携、`experiment-gate` 連携、artifact 保存を持つ。一方で、KanoMode に必要な次の契約はまだ存在しない。
@@ -32,6 +37,8 @@ RanD に KanoMode を追加し、既存の `research -> insight -> gate -> sync 
 - researcher / user / gatekeeper / product の persona 切替
 - `kano.json` と `requirements_packet.json` の artifact 契約
 - requirements packet を `experiment-gate` へ写像する packet gate 変換
+- 既存要件定義を入力にして `requirements_audit_packet.json` を生成する監査契約
+- manual-bb-test-harness / code-to-gate へ渡す Requirement Definition Gate 契約
 
 KanoMode は新規 OSS ではなく、RanD の research runtime に追加する軽量アダプタとして扱う。
 
@@ -44,7 +51,9 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
 - 検索クエリ型 fetcher または既存 search adapter への薄い接続
 - evidence cluster を入力とする persona-aware insight payload
 - `kano.json` と `requirements_packet.json` の保存
+- `requirements_audit_packet.json` の保存
 - requirements packet から `experiment-gate` への GateRequest 変換
+- requirements audit packet から manual-bb-test-harness / code-to-gate へ渡す監査導線
 - fixture / cached corpus を使う offline eval
 - `workflow-cookbook` の Task Seed / Acceptance / Evidence に沿った検証記録
 
@@ -87,6 +96,14 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
   - requirement / KPI / acceptance / risk
   - downstream hooks
   - release readiness prelude
+- `requirements_audit_packet.json`
+  - 既存要件定義の監査パケット
+  - requirement ごとの Kano 再分類
+  - testability
+  - implementation alignment
+  - issues
+  - suggested action
+  - requirement gate verdict
 - 既存 artifact
   - `report.json`
   - `insight.json`
@@ -114,6 +131,11 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
 | FR-K10 | confidence, bias_note, kill_condition が欠ける候補は packet 昇格しないこと | validation test で確認できる |
 | FR-K11 | live search が失敗しても offline eval preset で再現可能に検証できること | `kano_requirements_offline_eval` が fixture 入力で動く |
 | FR-K12 | 既存の `report.json.status` は KanoMode の部分失敗を `degraded` として表現できること | integration test で確認できる |
+| FR-K13 | KanoMode は discovery と audit の 2 モードを区別できること | preset または mode field で `kano_discovery_mode` / `kano_audit_mode` が判別できる |
+| FR-K14 | 既存要件定義を audit input として読み、requirement ごとの Kano 再評価を出せること | `requirements_audit_packet.json.requirements[*].kano_estimate` で確認できる |
+| FR-K15 | audit packet は testability と implementation_alignment を持つこと | `requirements_audit_packet.json.requirements[*]` で確認できる |
+| FR-K16 | audit packet は manual-bb-test-harness と code-to-gate へ渡す gate summary を持つこと | `requirements_audit_packet.json.gate_summary` で確認できる |
+| FR-K17 | Requirement Definition Gate は `go`, `conditional_go`, `no_go` を返せること | audit fixture または sample artifact で確認できる |
 
 ## 6. 非機能要求
 
@@ -124,7 +146,9 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
 | NFR-K03 | LLM の断定を避けるため、confidence / bias / kill condition を必須化すること | schema validation で確認できる |
 | NFR-K04 | 日本語と英語の locale を evidence metadata で分離できること | sample artifact で `locale` が確認できる |
 | NFR-K05 | 新規依存は最小化し、既存 adapter / runtime pattern を優先すること | PR diff と docs で確認できる |
-| NFR-K06 | downstream OSS へ渡す主契約は `requirements_packet.json` に集約すること | README / specification に明記される |
+| NFR-K06 | discovery mode で downstream OSS へ渡す主契約は `requirements_packet.json` に集約すること | README / specification に明記される |
+| NFR-K07 | 既存要件監査では、書かれた要件を正とせず外部証跡・Kano分類・検収可能性・実装整合性で再評価すること | audit specification と gate criteria に明記される |
+| NFR-K08 | audit mode で downstream OSS へ渡す主契約は `requirements_audit_packet.json` に集約すること | specification に明記される |
 
 ## 7. 成功指標
 
@@ -135,6 +159,8 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
 | `must_be_false_positive_rate` | must_be 過剰分類を抑える | pilot で 0.20 以下 |
 | `packet_schema_valid_rate` | downstream 消費可能性を見る | 1.00 |
 | `manual_bb_gap_count` | 要求から手動 BB 観点へ落ちる抜けを見る | pilot ごとに記録し、増減を追跡 |
+| `requirement_gate_conditional_rate` | 既存要件定義で Conditional Go になった比率を見る | pilot ごとに記録 |
+| `audit_issue_resolution_rate` | audit で見つかった issue が修正された比率を見る | 0.70 以上 |
 
 ## 8. 受け入れ条件
 
@@ -151,6 +177,16 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
 | AC-K09 | live web なしで offline eval が実行できる | offline preset または fixture test |
 | AC-K10 | README / specification / evaluation に KanoMode の artifact 契約が追記されている | docs review |
 
+### Audit Mode 受け入れ条件
+
+Audit mode の受け入れ条件は [evaluation.md](evaluation.md) の AC-K07 ~ AC-K09 を参照。
+
+| ID | 条件 | 正本 |
+| --- | --- | --- |
+| AC-K07 | `requirements_audit_packet.json` の root と requirement item の必須 field が仕様化されている | [evaluation.md AC-K07](evaluation.md) |
+| AC-K08 | Requirement Definition Gate が `go`, `conditional_go`, `no_go` の判定基準を持つ | [evaluation.md AC-K08](evaluation.md) |
+| AC-K09 | manual-bb-test-harness と code-to-gate の役割分担が仕様化されている | [evaluation.md AC-K09](evaluation.md) |
+
 ## 9. 実装 Task Seed
 
 | Task | 優先度 | 目的 | 依存 |
@@ -159,6 +195,7 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
 | TASK-20260526-02 | P1 | packet-to-gate と schema validation を固める | TASK-20260526-01 |
 | TASK-20260526-03 | P1 | docs / examples / offline eval を整備する | TASK-20260526-01 |
 | TASK-20260526-04 | P2 | Kestra flow / schedule へ展開する | TASK-20260526-02 |
+| [TASK-20260526-05](tasks/TASK-20260526-05-kano-audit-mode.md) | P1 | 既存要件監査モードと Requirement Definition Gate を定義する | TASK-20260526-01 |
 
 ## 10. リスクと緩和策
 

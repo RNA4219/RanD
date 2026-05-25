@@ -75,6 +75,9 @@ def collect_source(source: dict[str, Any], user_agent: str, timeout_seconds: int
     if fetcher == "kano_fixture_json":
         fixture_path = workspace_root() / source["fixture_path"]
         return parse_kano_fixture_json(source, fixture_path, max_items)
+    if fetcher == "audit_fixture_json":
+        fixture_path = workspace_root() / source["fixture_path"]
+        return parse_audit_fixture_json(source, fixture_path, max_items)
     raise ValueError(f"Unknown fetcher: {fetcher}")
 
 
@@ -249,6 +252,45 @@ def parse_kano_fixture_json(source: dict[str, Any], fixture_path: Path, max_item
                 claims=record.get("claims", []),
                 evidence=record.get("evidence", []),
                 tags=record.get("tags", ["kano", "fixture"]),
+                priority=record.get("priority", max(max_items - len(items), 1)),
+                high_priority=record.get("high_priority", len(items) < 3),
+                metadata=metadata,
+            )
+        )
+    return items
+
+
+def parse_audit_fixture_json(source: dict[str, Any], fixture_path: Path, max_items: int) -> list[NormalizedItem]:
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    records = payload.get("items", payload if isinstance(payload, list) else [])
+    items: list[NormalizedItem] = []
+    for record in records[:max_items]:
+        metadata = dict(record.get("metadata", {}))
+        metadata.setdefault("source_type", record.get("source_type", "audit"))
+        metadata.setdefault("source_tier", record.get("source_tier", "primary"))
+        metadata.setdefault("locale", record.get("locale", "ja-JP"))
+        metadata.setdefault("freshness_days", record.get("freshness_days"))
+        metadata.setdefault("requirement_id", record.get("requirement_id", "REQ-UNKNOWN"))
+        metadata.setdefault("original_text", record.get("original_text", record.get("title", "")))
+        metadata.setdefault("kano_type", record.get("kano_type", "questionable"))
+        metadata.setdefault("testability", record.get("testability", "medium"))
+        metadata.setdefault("implementation_alignment", record.get("implementation_alignment", "unknown"))
+        metadata.setdefault("risks", record.get("risks", []))
+        metadata.setdefault("issues", record.get("issues", []))
+        metadata.setdefault("suggested_action", record.get("suggested_action", "確認"))
+        item_id = record.get("id") or _slugify(f"{source['name']}-{record.get('title', len(items))}")[:80]
+        items.append(
+            NormalizedItem(
+                id=item_id,
+                kind=record.get("kind", "audit_evidence"),
+                source_name=source["name"],
+                url=record.get("url", f"fixture://{item_id}"),
+                title=record.get("title", item_id),
+                published_at=record.get("published_at"),
+                summary=record.get("summary", ""),
+                claims=record.get("claims", []),
+                evidence=record.get("evidence", []),
+                tags=record.get("tags", ["audit", "fixture"]),
                 priority=record.get("priority", max(max_items - len(items), 1)),
                 high_priority=record.get("high_priority", len(items) < 3),
                 metadata=metadata,

@@ -8,6 +8,12 @@ from rand_research.models import NormalizedItem, SCHEMA_VERSION
 
 KANO_TYPES = {"must_be", "performance", "attractive", "indifferent", "reverse", "questionable"}
 
+GATE_VERDICTS = {"go", "conditional_go", "no_go"}
+
+TESTABILITY_LEVELS = {"high", "medium", "low", "blocked"}
+
+IMPLEMENTATION_ALIGNMENT_LEVELS = {"high", "medium", "low", "unknown"}
+
 
 def build_kano_artifacts(items: list[NormalizedItem], preset: dict[str, Any], run_id: str) -> dict[str, dict[str, Any]]:
     candidates = _build_candidates(items, preset, run_id)
@@ -210,3 +216,203 @@ def _risks_for(kano_type: str) -> list[str]:
     if kano_type == "reverse":
         return ["default enablement can lower satisfaction for some segments"]
     return ["classification can drift as expectations change"]
+
+
+def build_audit_artifacts(
+    items: list[NormalizedItem],
+    preset: dict[str, Any],
+    run_id: str,
+    document_id: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Build requirements_audit_packet.json from audit evidence items."""
+    audit_requirements = _build_audit_requirements(items, preset, run_id)
+    gate_summary = _build_gate_summary(audit_requirements)
+
+    audit_packet = {
+        "schema_version": SCHEMA_VERSION,
+        "document_id": document_id or preset.get("audit_document_id", f"AUDIT-{run_id}"),
+        "summary": _audit_summary(items, audit_requirements, gate_summary),
+        "requirements": audit_requirements,
+        "gate_summary": gate_summary,
+        "source_refs": {
+            "audited_document": preset.get("audit_document_ref", ""),
+            "external_evidence": [item.url for item in items if item.metadata.get("source_tier") in ("user_signal", "comparison")],
+            "implementation_evidence": [item.url for item in items if item.metadata.get("source_tier") == "primary"],
+        },
+        "assumptions": preset.get(
+            "audit_assumptions",
+            [
+                "audit items are representative of requirement coverage",
+                "external evidence may have temporal drift",
+                "implementation_alignment is inferred from available evidence",
+            ],
+        ),
+    }
+
+    kano = {
+        "schema_version": SCHEMA_VERSION,
+        "mode": "kano_audit",
+        "request_id": f"kano-audit-{run_id}",
+        "topic": preset.get("audit_topic", preset.get("topic", "Requirement Definition Audit")),
+        "persona_modes": preset.get("persona_modes", ["researcher", "gatekeeper", "product"]),
+        "source_summary": {
+            "total_evidence": len(items),
+            "primary_source_count": _count_by_tier(items, "primary"),
+            "user_signal_count": _count_by_tier(items, "user_signal"),
+            "comparison_source_count": _count_by_type(items, "compare"),
+            "freshness_window_days": preset.get("freshness_window_days", 180),
+        },
+        "kano_candidates": [
+            {
+                "candidate_id": req["requirement_id"],
+                "statement": req["original_text"],
+                "kano_type": req["kano_estimate"],
+                "confidence": req["confidence"],
+                "evidence": req["evidence"],
+                "persona_votes": {"gatekeeper": req["gate_verdict"]},
+                "bias_note": "",
+                "kill_condition": "",
+            }
+            for req in audit_requirements
+        ],
+        "known_biases": [
+            "audit scope may miss undocumented requirements",
+            "implementation evidence can lag behind actual code state",
+        ],
+    }
+
+    return {"kano": kano, "requirements_audit_packet": audit_packet}
+
+
+def _build_audit_requirements(
+    items: list[NormalizedItem],
+    preset: dict[str, Any],
+    run_id: str,
+) -> list[dict[str, Any]]:
+    grouped: dict[str, list[NormalizedItem]] = {}
+    for item in items:
+        req_id = item.metadata.get("requirement_id") or f"REQ-{item.id[:8]}"
+        grouped.setdefault(req_id, []).append(item)
+
+    requirements: list[dict[str, Any]] = []
+    for req_id, group in sorted(grouped.items()):
+        first = group[0]
+        kano_estimate = _select_kano_type(group)
+        confidence = round(sum(float(item.metadata.get("confidence", 0.6)) for item in group) / len(group), 2)
+        testability = first.metadata.get("testability", "medium")
+        implementation_alignment = first.metadata.get("implementation_alignment", "unknown")
+        gate_verdict = _determine_gate_verdict(kano_estimate, testability, implementation_alignment, confidence)
+
+        evidence = [
+            {
+                "evidence_id": f"EV-AUDIT-{idx:03d}-{item.id[:16]}",
+                "source_type": item.metadata.get("source_type", item.kind),
+                "source_tier": item.metadata.get("source_tier", "unknown"),
+                "source_ref": item.url,
+                "summary": item.summary or item.title,
+                "weight": float(item.metadata.get("weight", 0.6)),
+                "freshness_days": item.metadata.get("freshness_days"),
+                "locale": item.metadata.get("locale", "und"),
+            }
+            for idx, item in enumerate(group, start=1)
+        ]
+
+        requirements.append(
+            {
+                "requirement_id": req_id,
+                "original_text": first.metadata.get("original_text", first.title),
+                "kano_estimate": kano_estimate,
+                "confidence": confidence,
+                "evidence": evidence,
+                "testability": testability if testability in TESTABILITY_LEVELS else "medium",
+                "implementation_alignment": implementation_alignment if implementation_alignment in IMPLEMENTATION_ALIGNMENT_LEVELS else "unknown",
+                "risks": first.metadata.get("risks", _risks_for(kano_estimate)),
+                "issues": first.metadata.get("issues", []),
+                "suggested_action": first.metadata.get("suggested_action", _suggested_action_for(gate_verdict)),
+                "gate_verdict": gate_verdict,
+            }
+        )
+    return requirements
+
+
+def _determine_gate_verdict(
+    kano_estimate: str,
+    testability: str,
+    implementation_alignment: str,
+    confidence: float,
+) -> str:
+    """Determine gate verdict based on Requirement Definition Gate criteria.
+
+    Specification 7節:
+    - go: must-be抜けが少なく、受入条件とKPIが観測可能で、実装整合に大きな破綻がない
+    - conditional_go: 方向性は妥当だが、受入条件、KPI、根拠、実装リスクの補強が必要
+    - no_go: must-be抜け、attractiveのmust-be誤扱い、価値根拠不足、検収不能、実装負債過大
+    """
+    if kano_estimate == "reverse":
+        return "no_go"
+
+    if testability == "blocked" or implementation_alignment == "low":
+        return "no_go"
+
+    if confidence < 0.5:
+        return "conditional_go"
+
+    if testability == "low" or implementation_alignment == "unknown":
+        return "conditional_go"
+
+    if kano_estimate == "attractive" and confidence < 0.7:
+        return "conditional_go"
+
+    if testability == "medium" or implementation_alignment == "medium":
+        return "conditional_go"
+
+    return "go"
+
+
+def _suggested_action_for(gate_verdict: str) -> str:
+    return {
+        "go": "維持。既存テストでcoverage確認。",
+        "conditional_go": "補強。受入条件、KPI、根拠、実装リスクの確認。",
+        "no_go": "再設計。要件文改訂または削除候補。",
+    }.get(gate_verdict, "確認")
+
+
+def _build_gate_summary(requirements: list[dict[str, Any]]) -> dict[str, Any]:
+    verdict_counts = Counter(req["gate_verdict"] for req in requirements)
+    verdict_distribution: dict[str, list[str]] = {}
+    for req in requirements:
+        verdict = req["gate_verdict"]
+        verdict_distribution.setdefault(verdict, []).append(req["requirement_id"])
+
+    go_count = verdict_counts.get("go", 0)
+    no_go_count = verdict_counts.get("no_go", 0)
+    conditional_count = verdict_counts.get("conditional_go", 0)
+
+    overall = "conditional_go" if no_go_count > 0 or conditional_count > go_count else "go" if no_go_count == 0 else "no_go"
+    overall_reason = (
+        f"{no_go_count}件no_goあり。要件改訂後に再監査推奨。" if no_go_count > 0
+        else f"{conditional_count}件conditional_goあり。補強後に再監査推奨。" if conditional_count > 0
+        else "すべてgo。維持推奨。"
+    )
+
+    return {
+        "go": go_count,
+        "conditional_go": conditional_count,
+        "no_go": no_go_count,
+        "total": len(requirements),
+        "verdict_distribution": verdict_distribution,
+        "overall_assessment": overall,
+        "overall_reason": overall_reason,
+    }
+
+
+def _audit_summary(
+    items: list[NormalizedItem],
+    requirements: list[dict[str, Any]],
+    gate_summary: dict[str, Any],
+) -> str:
+    return (
+        f"{len(requirements)}要件監査。"
+        f"go={gate_summary['go']}, conditional_go={gate_summary['conditional_go']}, no_go={gate_summary['no_go']}."
+        f"{gate_summary['overall_reason']}"
+    )

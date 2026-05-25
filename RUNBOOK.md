@@ -13,6 +13,7 @@ KanoMode は、まずドキュメント実装として進める。
 - P0 Task Seed: [docs/tasks/TASK-20260526-01-kano-mode-p0.md](docs/tasks/TASK-20260526-01-kano-mode-p0.md)
 - 引継ぎ: [docs/kano_mode_handoff.md](docs/kano_mode_handoff.md)
 - エージェント指示: [docs/kano_mode_agent_instruction.md](docs/kano_mode_agent_instruction.md)
+- 次工程整理: [docs/kano_mode_next_steps.md](docs/kano_mode_next_steps.md)
 
 ## 3. 注意事項
 
@@ -21,6 +22,9 @@ KanoMode は、まずドキュメント実装として進める。
 - 勝手に revert しない。
 - 続きを実装する場合は、ユーザーに「コード実装へ進む」確認を取る。
 - 文書だけ整える場合は、`docs/requirements_kano_mode.md`、`docs/tasks/`、`docs/kano_mode_handoff.md` を中心に更新する。
+- **[2026-05-26 実装完了]** Discovery mode と Audit mode の実装が完了し、commit済み (`b8db672`)。
+- offline eval で `kano.json`、`requirements_packet.json`、`requirements_audit_packet.json` が生成されることを確認済み。
+- unittest 35 tests OK。
 
 ## 4. 検証済みコマンド
 
@@ -62,5 +66,22 @@ KanoMode の文書正本は次の順に読む。
 4. [docs/evaluation.md](docs/evaluation.md)
 5. [docs/kano_mode_handoff.md](docs/kano_mode_handoff.md)
 6. [docs/kano_mode_agent_instruction.md](docs/kano_mode_agent_instruction.md)
+7. [docs/kano_mode_next_steps.md](docs/kano_mode_next_steps.md)
+
+KanoMode audit mode を扱う場合は、追加で次を読む。
+
+- [docs/tasks/TASK-20260526-05-kano-audit-mode.md](docs/tasks/TASK-20260526-05-kano-audit-mode.md)
+
+Audit mode の次作業単位:
+
+- [TASK-20260526-05-1](docs/tasks/TASK-20260526-05-kano-audit-mode.md): requirements_audit_packet.json artifact contract
+- [TASK-20260526-05-2](docs/tasks/TASK-20260526-05-kano-audit-mode.md): Requirement Definition Gate判定基準
+- [TASK-20260526-05-3](docs/tasks/TASK-20260526-05-kano-audit-mode.md): manual-bb-test-harness / code-to-gate連携
+
+Audit mode sample artifact:
+
+- [docs/examples/requirements_audit_packet.sample.json](docs/examples/requirements_audit_packet.sample.json)
+  - 仕様理解用sample（go/conditional_go/no_goの3要件例）
+  - 実装fixtureではない
 
 仕様変更時は、要件、仕様、検収、Task Seed、引継ぎ資料のうち影響するものを同時に更新する。

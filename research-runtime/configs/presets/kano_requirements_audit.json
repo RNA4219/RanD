@@ -1,0 +1,42 @@
+{
+  "name": "kano_requirements_audit",
+  "category": "audit",
+  "mode": "kano_audit",
+  "audit_topic": "RanD KanoMode Requirement Definition Audit",
+  "audit_document_id": "REQDOC-20260526-001",
+  "audit_document_ref": "docs://requirements_kano_mode.md",
+  "seed_urls": [
+    "fixture://tests/fixtures/audit_evidence.json"
+  ],
+  "allowed_domains": [],
+  "query_template": "Audit existing requirements for Kano classification, testability, and implementation alignment.",
+  "prompt_template": "kano_audit_prompt.md",
+  "max_items": 10,
+  "output_profile": "kano_audit_packet",
+  "insight_enabled": false,
+  "gate_enabled": false,
+  "persona_modes": [
+    "researcher",
+    "gatekeeper",
+    "product"
+  ],
+  "locales": [
+    "ja-JP",
+    "en-US"
+  ],
+  "freshness_window_days": 180,
+  "audit_assumptions": [
+    "audit items are representative of requirement coverage",
+    "external evidence may have temporal drift",
+    "implementation_alignment is inferred from available evidence"
+  ],
+  "sources": [
+    {
+      "name": "audit_fixture_evidence",
+      "kind": "audit_evidence",
+      "fetcher": "audit_fixture_json",
+      "fixture_path": "tests/fixtures/audit_evidence.json",
+      "priority": 1
+    }
+  ]
+}

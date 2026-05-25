@@ -1,0 +1,130 @@
+{
+  "items": [
+    {
+      "id": "audit-req-001-go",
+      "kind": "audit_evidence",
+      "url": "fixture://audit/req-001",
+      "title": "preset実行導線の監査",
+      "summary": "REQ-001: preset実行導線は仕様と一致し、unittestで担保されている。",
+      "claims": [
+        "preset schemaと仕様が一致",
+        "unittestでcoverage確認済み"
+      ],
+      "evidence": [
+        "fixture primary: preset schema matches specification"
+      ],
+      "tags": [
+        "audit",
+        "official",
+        "ja-JP"
+      ],
+      "priority": 8,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "REQ-001",
+        "original_text": "KanoModeはpresetから起動でき、query familyからevidenceを収集し、kano.jsonとrequirements_packet.jsonを生成する。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.92,
+        "weight": 0.95,
+        "testability": "high",
+        "implementation_alignment": "high",
+        "risks": [
+          "preset schema変更で既存presetが壊れる可能性"
+        ],
+        "issues": [],
+        "suggested_action": "維持。既存unittestでcoverage確認済み。"
+      }
+    },
+    {
+      "id": "audit-req-002-conditional",
+      "kind": "audit_evidence",
+      "url": "fixture://audit/req-002",
+      "title": "safety fields validationの監査",
+      "summary": "REQ-002: validationロジックは仕様で定義されているが、実装が部分的。",
+      "claims": [
+        "FR-K10で安全field必須化を定義",
+        "validation test追加が必要"
+      ],
+      "evidence": [
+        "fixture primary: safety fields defined in specification"
+      ],
+      "tags": [
+        "audit",
+        "official",
+        "ja-JP"
+      ],
+      "priority": 7,
+      "high_priority": true,
+      "metadata": {
+        "requirement_id": "REQ-002",
+        "original_text": "KanoModeはconfidence, bias_note, kill_conditionが欠ける候補をrequirements_packetに昇格させない。",
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "ja-JP",
+        "freshness_days": 1,
+        "kano_type": "must_be",
+        "confidence": 0.78,
+        "weight": 0.90,
+        "testability": "high",
+        "implementation_alignment": "medium",
+        "risks": [
+          "validationロジックの実装が未完了",
+          "test caseで欠損パターンを網羅していない"
+        ],
+        "issues": [
+          "acceptance_criteriaが観測可能でない",
+          "KPI草案がない"
+        ],
+        "suggested_action": "validation test追加。欠損パターンfixture作成。"
+      }
+    },
+    {
+      "id": "audit-req-003-no-go",
+      "kind": "audit_evidence",
+      "url": "fixture://audit/req-003",
+      "title": "attractive誤分類の監査",
+      "summary": "REQ-003: attractiveをmust_be扱いするとgate overreachのリスク。",
+      "claims": [
+        "元要件のKano分類が誤り",
+        "gate_policy計算ロジックが仕様と矛盾"
+      ],
+      "evidence": [
+        "fixture user_signal: attractive misclassified as must_be"
+      ],
+      "tags": [
+        "audit",
+        "complaints",
+        "ja-JP"
+      ],
+      "priority": 5,
+      "high_priority": false,
+      "metadata": {
+        "requirement_id": "REQ-003",
+        "original_text": "KanoModeはattractive要件をmust_be扱いして、hard_gateに写像できる。",
+        "source_type": "complaints",
+        "source_tier": "user_signal",
+        "locale": "ja-JP",
+        "freshness_days": 30,
+        "kano_type": "attractive",
+        "confidence": 0.45,
+        "weight": 0.60,
+        "testability": "low",
+        "implementation_alignment": "low",
+        "risks": [
+          "attractiveをmust_be扱いすると過剰なhard_gateが発生",
+          "gate overreachのリスク"
+        ],
+        "issues": [
+          "元要件のKano分類が誤り",
+          "gate_policy計算ロジックが仕様と矛盾",
+          "検収条件が観測不能"
+        ],
+        "suggested_action": "再分類。gate_policyをsoft_experiment_gateに修正。要件文を改訂。"
+      }
+    }
+  ]
+}

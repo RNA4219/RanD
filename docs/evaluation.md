@@ -32,6 +32,9 @@ KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mod
 | AC-K04 | requirements packet | `requirements_packet.json` が `schema_version`, `packet_id`, `derived_from`, `product_context`, `assumptions`, `requirements`, `release_readiness_prelude` を持つ。`requirements[*]` が `requirement_id`, `title`, `statement`, `kano_type`, `priority`, `confidence`, `evidence_refs`, `kpi`, `acceptance_criteria`, `risks`, `manual_bb_focus`, `downstream_hooks`, `gate_policy`, `bias_note`, `kill_condition` を持つ |
 | AC-K05 | safety fields | confidence, bias_note, kill_condition 欠損時に packet 昇格しない |
 | AC-K06 | compatibility | 既存 preset の `python -m unittest discover tests` が通る |
+| AC-K07 | audit artifact | `requirements_audit_packet.json` の root と requirement item の必須 field が仕様化されている |
+| AC-K08 | requirement gate | Requirement Definition Gate が `go`, `conditional_go`, `no_go` の判定基準を持つ |
+| AC-K09 | downstream audit hooks | manual-bb-test-harness と code-to-gate の役割分担が仕様化されている |
 
 ## 3. 検証コマンド
 

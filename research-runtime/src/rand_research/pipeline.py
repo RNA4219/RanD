@@ -8,7 +8,7 @@ from uuid import uuid4
 from rand_research.config import load_preset, load_runtime_config
 from rand_research.fetchers import collect_source
 from rand_research.integrations import run_gate, run_insight, write_memx_journal, write_tracker_sync
-from rand_research.kano import build_kano_artifacts
+from rand_research.kano import build_audit_artifacts, build_kano_artifacts
 from rand_research.models import ExecutionContext, NormalizedItem, RunMeta
 from rand_research.paths import workspace_root
 from rand_research.reports import save_run_outputs
@@ -144,6 +144,8 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
     extra_payloads: dict[str, dict[str, Any]] = {}
     if preset.get("mode") == "kano_requirements":
         extra_payloads = build_kano_artifacts(items, preset, run_id)
+    elif preset.get("mode") == "kano_audit":
+        extra_payloads = build_audit_artifacts(items, preset, run_id)
 
     meta.finish()
     artifact_paths = _expected_artifacts(run_dir)

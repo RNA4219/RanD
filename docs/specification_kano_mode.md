@@ -20,7 +20,7 @@ workflow_reference:
 
 本仕様書は、RanD の `research-runtime` に追加する KanoMode のふるまい、入出力、artifact 契約、既存チェーンとの接続、検証観点を定義する。
 
-KanoMode は、検索証拠や fixture evidence をもとに Kano 分類を行い、実務で使える `requirements_packet.json` を生成する要求定義支援モードである。新規 OSS ではなく、RanD の既存 runtime / preset / artifact layer に追加する軽量アダプタとして扱う。
+KanoMode は、検索証拠や fixture evidence をもとに Kano 分類を行い、実務で使える `requirements_packet.json` を生成する要求定義支援モードである。加えて、既存の要件定義を再評価して `requirements_audit_packet.json` を生成する要件監査モードも扱う。新規 OSS ではなく、RanD の既存 runtime / preset / artifact layer に追加する軽量アダプタとして扱う。
 
 ## 2. 適用範囲
 
@@ -34,6 +34,8 @@ KanoMode は、検索証拠や fixture evidence をもとに Kano 分類を行�
 - persona mode による Kano 分類補助
 - `kano.json` の生成
 - `requirements_packet.json` の生成
+- `requirements_audit_packet.json` の生成
+- Requirement Definition Gate の判定
 - 既存 artifact / status / taskstate / memx / tracker sync との接続
 - offline eval と fixture ベースの検証
 - `workflow-cookbook` の Task Seed / Acceptance / Evidence への接続
@@ -57,9 +59,18 @@ KanoMode は、検索証拠や fixture evidence をもとに Kano 分類を行�
 | Workflow maintainer | Task Seed / Acceptance / Evidence へ落とし、作業を追跡する |
 | AI エージェント | 要件、仕様、RUNBOOK、Task Seed から次の作業単位を判断する |
 
-## 4. 機能仕様
+## 4. モード
 
-### 4.1 実行入口
+| mode | 目的 | 主入力 | 主出力 |
+| --- | --- | --- | --- |
+| `kano_discovery_mode` | 新規要求や調査テーマから要件候補を起こす | topic, query family, fixture evidence, external evidence | `kano.json`, `requirements_packet.json` |
+| `kano_audit_mode` | 既存要件定義を監査し、要件定義ゲートへ渡す | existing requirements document, external evidence, implementation evidence | `kano.json`, `requirements_audit_packet.json` |
+
+`kano_discovery_mode` は「何を要求にすべきか」を作る。`kano_audit_mode` は「すでに書かれた要件を信じてよいか」を確認する。
+
+## 5. 機能仕様
+
+### 5.1 実行入口
 
 KanoMode は `run-once` の preset として起動する。
 
@@ -76,12 +87,13 @@ cd research-runtime
 uv run python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 ```
 
-### 4.2 preset
+### 5.2 preset
 
 | preset | 種別 | 目的 | 受け入れでの扱い |
 | --- | --- | --- | --- |
 | `kano_requirements_hybrid` | live/search-ready | query family から Kano evidence seed を生成し、将来 live search adapter へ接続する | shadow / pilot |
 | `kano_requirements_offline_eval` | fixture/cached | fixture evidence だけで artifact 契約を再現検証する | 正本 |
+| `kano_requirements_audit` | audit | 既存要件定義を再評価し、`requirements_audit_packet.json` を生成する | pilot |
 
 KanoMode preset は少なくとも次を宣言できる。
 
@@ -97,7 +109,7 @@ KanoMode preset は少なくとも次を宣言できる。
 
 offline eval は live web search と live LLM 実行に依存しない。これにより、要件 / 仕様 / artifact 契約の回帰確認を安定させる。
 
-### 4.3 query family
+### 5.3 query family
 
 query family は Kano 信号を拾うための検索意図である。
 
@@ -114,7 +126,7 @@ query family は Kano 信号を拾うための検索意図である。
 
 query family は `locale` と `segment` を metadata に残す。日本語市場と英語圏市場の期待値を混同しないためである。
 
-### 4.4 evidence metadata
+### 5.4 evidence metadata
 
 KanoMode の evidence は、最低限次を保持する。
 
@@ -129,7 +141,7 @@ KanoMode の evidence は、最低限次を保持する。
 | `freshness_days` | 取得または公開からの日数。未指定なら null |
 | `locale` | `ja-JP`, `en-US`, `und` など |
 
-### 4.5 evidence cluster
+### 5.5 evidence cluster
 
 KanoMode は単一 item ではなく、要求候補 cluster 単位で分類する。
 
@@ -142,7 +154,7 @@ cluster の最低仕様:
 - cluster は evidence refs を保持する。
 - cluster は persona votes を保持する。
 
-### 4.6 persona mode
+### 5.6 persona mode
 
 persona mode は、同じ evidence を異なる観点で読むための分類補助である。
 
@@ -155,7 +167,7 @@ persona mode は、同じ evidence を異なる観点で読むための分類補
 
 persona votes は `kano.json.kano_candidates[*].persona_votes` に保存する。
 
-### 4.7 Kano type
+### 5.7 Kano type
 
 Kano type は次を扱う。
 
@@ -170,9 +182,9 @@ Kano type は次を扱う。
 
 `questionable` は `requirements_packet.json` へ昇格しない。
 
-## 5. I/O Contract
+## 6. I/O Contract
 
-### 5.1 Input
+### 6.1 Input
 
 | 入力 | 内容 |
 | --- | --- |
@@ -183,13 +195,16 @@ Kano type は次を扱う。
 | source metadata | source tier, source type, freshness, segment |
 | state context | 既知 URL、過去 run、open task、memory entries |
 | fixture evidence | offline eval 用の固定 evidence |
+| existing requirements document | audit mode で監査する既存要件定義 |
+| implementation evidence | code-to-gate へ渡す実装・テスト・リスク証跡 |
 
-### 5.2 Output
+### 6.2 Output
 
 KanoMode は既存 8 artifact に加えて、次を追加できる。
 
 - `kano.json`
 - `requirements_packet.json`
+- `requirements_audit_packet.json`
 
 既存 8 artifact:
 
@@ -202,7 +217,7 @@ KanoMode は既存 8 artifact に加えて、次を追加できる。
 - `tracker_sync.json`
 - `state_context.json`
 
-### 5.3 `kano.json`
+### 6.3 `kano.json`
 
 `kano.json` は分析台帳である。
 
@@ -232,7 +247,7 @@ KanoMode は既存 8 artifact に加えて、次を追加できる。
 | `bias_note` | 想定バイアス |
 | `kill_condition` | 何が起きたら捨てるか |
 
-### 5.4 `requirements_packet.json`
+### 6.4 `requirements_packet.json`
 
 `requirements_packet.json` は downstream OSS と人間レビューへ渡す実務契約である。
 
@@ -268,7 +283,41 @@ KanoMode は既存 8 artifact に加えて、次を追加できる。
 | `bias_note` | 想定バイアス |
 | `kill_condition` | 何が起きたら捨てるか |
 
-### 5.5 昇格ルール
+### 6.5 `requirements_audit_packet.json`
+
+`requirements_audit_packet.json` は既存要件定義の監査結果である。
+
+Sample artifact: [examples/requirements_audit_packet.sample.json](examples/requirements_audit_packet.sample.json)
+
+必須 root fields:
+
+| field | 内容 |
+| --- | --- |
+| `schema_version` | artifact schema version |
+| `document_id` | 監査対象の要件定義 ID |
+| `summary` | 監査要約 |
+| `requirements` | 要件ごとの監査結果 |
+| `gate_summary` | Requirement Definition Gate の集計 |
+| `source_refs` | 監査に使った要件・証拠・実装参照 |
+| `assumptions` | 前提 |
+
+`requirements[*]` の必須 fields:
+
+| field | 内容 |
+| --- | --- |
+| `requirement_id` | 既存要件 ID |
+| `original_text` | 監査対象の原文 |
+| `kano_estimate` | Kano 再分類 |
+| `confidence` | 確信度 |
+| `evidence` | 外部証跡・内部証跡 |
+| `testability` | `high`, `medium`, `low`, `blocked` |
+| `implementation_alignment` | `high`, `medium`, `low`, `unknown` |
+| `risks` | 残リスク |
+| `issues` | 問題点 |
+| `suggested_action` | 推奨アクション |
+| `gate_verdict` | `go`, `conditional_go`, `no_go` |
+
+### 6.6 昇格ルール
 
 Kano candidate は、次を満たす場合だけ `requirements_packet.json` へ昇格できる。
 
@@ -280,7 +329,27 @@ Kano candidate は、次を満たす場合だけ `requirements_packet.json` へ�
 
 `must_be` へ昇格する場合は、少なくとも user signal または primary source の evidence を持つことを推奨する。
 
-## 6. 既存チェーンとの接続
+## 7. Requirement Definition Gate
+
+Requirement Definition Gate は、既存要件定義を「書いてあるから正しい」と扱わず、次の軸で判定する。
+
+| 軸 | 見ること | 主担当 |
+| --- | --- | --- |
+| 価値妥当性 | must-be / performance / attractive / reverse の分類が妥当か | RanD KanoMode |
+| ユーザー期待整合 | 外部証跡や競合 baseline とズレていないか | RanD KanoMode |
+| 検収可能性 | 受入条件が観測可能か。手動 BB で確認できるか | manual-bb-test-harness |
+| 実装整合性 | 実装・構造・テストが要件を支えているか | code-to-gate |
+| 残リスク | Go 判断に残すべきリスクが明示されているか | 全体 |
+
+判定基準:
+
+| verdict | 条件 |
+| --- | --- |
+| `go` | must-be の抜けが少なく、受入条件と KPI が観測可能で、実装整合に大きな破綻がない |
+| `conditional_go` | 方向性は妥当だが、受入条件、KPI、根拠、実装リスクの補強が必要 |
+| `no_go` | must-be 抜け、attractive の must-be 誤扱い、価値根拠不足、検収不能、実装負債過大のいずれかがある |
+
+## 8. 既存チェーンとの接続
 
 KanoMode も RanD の正規チェーンに従う。
 
@@ -298,7 +367,7 @@ research -> insight -> gate -> sync -> notify
 | sync | `requirements_packet.json` の参照を tracker / taskstate / memx へ残す |
 | notify | run summary と artifact path を通知対象にする |
 
-## 7. Downstream 連携
+## 9. Downstream 連携
 
 | 連携先 | 渡すもの | 期待する使い方 |
 | --- | --- | --- |
@@ -310,7 +379,9 @@ research -> insight -> gate -> sync -> notify
 
 downstream への主契約は `requirements_packet.json` に集約する。
 
-## 8. 互換性と変更管理
+audit mode では downstream への主契約を `requirements_audit_packet.json` にする。`manual-bb-test-harness` は `testability` と `manual_bb_focus` を使い、`code-to-gate` は `implementation_alignment` と `risks` を使う。
+
+## 10. 互換性と変更管理
 
 - 既存 preset の挙動を破壊してはならない。
 - 既存 8 artifact の required fields を削除してはならない。
@@ -321,7 +392,7 @@ downstream への主契約は `requirements_packet.json` に集約する。
 - live web search の不安定性を CI の必須条件にしてはならない。
 - 先行コード差分は [kano_mode_handoff.md](kano_mode_handoff.md) の扱いに従う。
 
-## 9. エラーと status
+## 11. エラーと status
 
 | 事象 | 推奨 status | 理由 |
 | --- | --- | --- |
@@ -334,23 +405,25 @@ downstream への主契約は `requirements_packet.json` に集約する。
 
 offline eval では、live insight / live search の不在で status が揺れないようにする。
 
-## 10. 検証観点
+## 12. 検証観点
 
-### 10.1 文書整合
+### 12.1 文書整合
 
 - [requirements_kano_mode.md](requirements_kano_mode.md) と本仕様の FR / AC / artifact fields が矛盾しない。
 - [evaluation.md](evaluation.md) の AC-K が本仕様の acceptance と一致する。
 - [RUNBOOK.md](../RUNBOOK.md) から本仕様、要件、Task Seed、引継ぎ資料へ辿れる。
 
-### 10.2 Artifact 検証
+### 12.2 Artifact 検証
 
 - `kano.json` が必須 root fields を持つ。
 - `kano_candidates[*]` が必須 fields を持つ。
 - `requirements_packet.json` が必須 root fields を持つ。
 - `requirements[*]` が必須 fields を持つ。
 - `confidence`, `bias_note`, `kill_condition` 欠損 candidate が packet 昇格しない。
+- `requirements_audit_packet.json` が必須 root fields を持つ。
+- `requirements_audit_packet.json.requirements[*]` が `testability`, `implementation_alignment`, `gate_verdict` を持つ。
 
-### 10.3 Runtime 検証
+### 12.3 Runtime 検証
 
 代表コマンド:
 
@@ -368,7 +441,7 @@ uv run python -m rand_research.cli run-once --preset kano_requirements_offline_e
 - `report.json.artifacts.requirements_packet_json` が存在する。
 - `requirements_packet.requirements` に昇格済み要求が含まれる。
 
-### 10.4 Drift 検知
+### 12.4 Drift 検知
 
 次のいずれかが起きたら、本仕様を更新する。
 
@@ -379,12 +452,15 @@ uv run python -m rand_research.cli run-once --preset kano_requirements_offline_e
 - preset 名が変わった。
 - offline eval の fixture 契約が変わった。
 - downstream hook の名前が変わった。
+- `requirements_audit_packet.json` の field が増減した。
+- Requirement Definition Gate の判定基準が変わった。
 
-## 11. Task / Acceptance / Evidence
+## 13. Task / Acceptance / Evidence
 
 Task Seed:
 
 - [tasks/TASK-20260526-01-kano-mode-p0.md](tasks/TASK-20260526-01-kano-mode-p0.md)
+- [tasks/TASK-20260526-05-kano-audit-mode.md](tasks/TASK-20260526-05-kano-audit-mode.md)
 
 Acceptance:
 
@@ -397,7 +473,7 @@ Evidence:
 - 検証証跡は [kano_mode_handoff.md](kano_mode_handoff.md) に記録済み。
 - 正式 PR 化する場合は、PR 本文から Task Seed / Acceptance / Evidence へリンクする。
 
-## 12. 関連資料
+## 14. 関連資料
 
 - 要件: [requirements_kano_mode.md](requirements_kano_mode.md)
 - 親要件: [requirements.md](requirements.md)
