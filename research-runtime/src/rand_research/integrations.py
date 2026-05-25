@@ -4,6 +4,7 @@ import importlib
 import json
 import os
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -363,7 +364,23 @@ def _load_log(path: Path, key: str) -> dict[str, Any]:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    content = json.dumps(payload, ensure_ascii=False, indent=2)
+    _atomic_write(path, content)
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write file atomically using temp file + rename."""
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp", prefix=path.name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _prefer_runtime_providers() -> dict[str, Any]:

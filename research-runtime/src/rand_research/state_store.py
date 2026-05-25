@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -23,7 +25,23 @@ def load_taskstate(state_path: Path) -> dict[str, Any]:
 def save_taskstate(state_path: Path, payload: dict[str, Any]) -> None:
     state_path.parent.mkdir(parents=True, exist_ok=True)
     payload.setdefault("schema_version", SCHEMA_VERSION)
-    state_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    content = json.dumps(payload, ensure_ascii=False, indent=2)
+    _atomic_write(state_path, content)
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write file atomically using temp file + rename."""
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp", prefix=path.name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def load_memx_journal(path: Path) -> dict[str, Any]:
