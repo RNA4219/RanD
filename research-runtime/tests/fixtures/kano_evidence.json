@@ -1,0 +1,106 @@
+{
+  "items": [
+    {
+      "id": "kano-setup-complaint-ja",
+      "kind": "kano_evidence",
+      "url": "fixture://kano/setup-complaint-ja",
+      "title": "セットアップで詰まると要件定義まで進めない",
+      "summary": "初期設定や証拠収集が失敗したときに、要求パケットがもっともらしく出ると困るという不満。",
+      "claims": [
+        "証拠不足時は packet 昇格を止める必要がある"
+      ],
+      "evidence": [
+        "fixture complaint: evidence gaps must be visible"
+      ],
+      "tags": [
+        "kano",
+        "complaints",
+        "ja-JP"
+      ],
+      "priority": 8,
+      "high_priority": true,
+      "metadata": {
+        "source_type": "complaints",
+        "source_tier": "user_signal",
+        "locale": "ja-JP",
+        "freshness_days": 12,
+        "kano_candidate_id": "setup-and-evidence-must-be",
+        "kano_type": "must_be",
+        "requirement_statement": "KanoMode は証拠不足や検索失敗を明示し、要求パケットを過信させてはならない。",
+        "confidence": 0.86,
+        "weight": 0.82,
+        "bias_note": "公開された不満はネガティブ極性に寄りやすい。",
+        "kill_condition": "offline eval と人手レビューで証拠不足時の昇格抑止が不要と確認された場合は再分類する。",
+        "open_questions": [
+          "どの証拠数を昇格の最低条件にするか"
+        ]
+      }
+    },
+    {
+      "id": "kano-setup-official-en",
+      "kind": "kano_evidence",
+      "url": "fixture://kano/setup-official-en",
+      "title": "Requirements packets need explicit evidence quality fields",
+      "summary": "Primary-style fixture evidence says requirements packets should preserve confidence, bias, and abort conditions.",
+      "claims": [
+        "confidence, bias_note, and kill_condition are required for safe packet use"
+      ],
+      "evidence": [
+        "fixture primary: packet fields must be explicit"
+      ],
+      "tags": [
+        "kano",
+        "official",
+        "en-US"
+      ],
+      "priority": 7,
+      "high_priority": true,
+      "metadata": {
+        "source_type": "official",
+        "source_tier": "primary",
+        "locale": "en-US",
+        "freshness_days": 30,
+        "kano_candidate_id": "setup-and-evidence-must-be",
+        "kano_type": "must_be",
+        "requirement_statement": "KanoMode は証拠不足や検索失敗を明示し、要求パケットを過信させてはならない。",
+        "confidence": 0.8,
+        "weight": 0.74,
+        "bias_note": "一次情報はポジティブな位置づけを含みやすい。",
+        "kill_condition": "offline eval と人手レビューで証拠不足時の昇格抑止が不要と確認された場合は再分類する。"
+      }
+    },
+    {
+      "id": "kano-kpi-praise-ja",
+      "kind": "kano_evidence",
+      "url": "fixture://kano/kpi-praise-ja",
+      "title": "KPI 草案まで出るとレビューが速い",
+      "summary": "要求候補に KPI 草案が付くと、レビュー会での判断が速くなるという称賛。",
+      "claims": [
+        "KPI draft can improve review speed"
+      ],
+      "evidence": [
+        "fixture praise: KPI draft helps product review"
+      ],
+      "tags": [
+        "kano",
+        "praise",
+        "ja-JP"
+      ],
+      "priority": 5,
+      "high_priority": false,
+      "metadata": {
+        "source_type": "praise",
+        "source_tier": "user_signal",
+        "locale": "ja-JP",
+        "freshness_days": 8,
+        "kano_candidate_id": "kpi-draft-attractive",
+        "kano_type": "attractive",
+        "requirement_statement": "KanoMode は要求候補に KPI 草案を付けられるとよい。",
+        "confidence": 0.67,
+        "weight": 0.63,
+        "bias_note": "称賛は高度ユーザーや熱心な利用者に偏る可能性がある。",
+        "kill_condition": "pilot で KPI 草案の採択率が低く編集コストが高い場合は任意機能へ縮小する。"
+      }
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "name": "kano_requirements_hybrid",
+  "category": "requirements",
+  "mode": "kano_requirements",
+  "topic": "RanD KanoMode requirements discovery",
+  "seed_urls": [
+    "query://kano-requirements-hybrid"
+  ],
+  "allowed_domains": [],
+  "query_template": "Collect Kano evidence for RanD requirements from primary sources, complaints, praise, comparison, and expectation signals.",
+  "prompt_template": "kano_requirements_prompt.md",
+  "max_items": 12,
+  "output_profile": "kano_requirements_packet",
+  "insight_enabled": false,
+  "gate_enabled": false,
+  "persona_modes": [
+    "researcher",
+    "user",
+    "gatekeeper",
+    "product"
+  ],
+  "locales": [
+    "ja-JP",
+    "en-US"
+  ],
+  "freshness_window_days": 180,
+  "product_context": {
+    "name": "RanD KanoMode",
+    "domain": "research-runtime requirements discovery",
+    "target_segment": "R&D agent operators",
+    "locales": [
+      "ja-JP",
+      "en-US"
+    ]
+  },
+  "sources": [
+    {
+      "name": "kano_query_seed",
+      "kind": "kano_evidence",
+      "fetcher": "kano_query_seed",
+      "topic": "RanD KanoMode requirements discovery",
+      "locales": [
+        "ja-JP",
+        "en-US"
+      ],
+      "priority": 1,
+      "query_families": [
+        {
+          "name": "complaints",
+          "candidate_id": "setup-and-evidence-must-be",
+          "kano_type": "must_be",
+          "source_tier": "query_seed",
+          "confidence": 0.62,
+          "requirement_statement": "KanoMode は証拠不足や検索失敗を明示し、要求パケットを過信させてはならない。",
+          "bias_note": "complaint query はネガティブ意見に偏りやすい。",
+          "kill_condition": "fixture と人手レビューで証拠不足時の昇格抑止が不要と確認された場合は再設計する。",
+          "templates": {
+            "ja-JP": "{topic} 不満 困る 使いにくい 必須",
+            "en-US": "{topic} complaints frustrating must have deal breaker"
+          }
+        },
+        {
+          "name": "praise",
+          "candidate_id": "kpi-draft-attractive",
+          "kano_type": "attractive",
+          "source_tier": "query_seed",
+          "confidence": 0.58,
+          "requirement_statement": "KanoMode は要求候補に KPI 草案を付けられるとよい。",
+          "bias_note": "praise query は熱心な支持者の意見を過大評価しやすい。",
+          "kill_condition": "pilot で KPI 草案の採択率が低く編集コストが高い場合は任意機能へ縮小する。",
+          "templates": {
+            "ja-JP": "{topic} 便利 助かる KPI 草案",
+            "en-US": "{topic} useful love KPI draft requirements"
+          }
+        },
+        {
+          "name": "compare",
+          "candidate_id": "competitive-baseline-performance",
+          "kano_type": "performance",
+          "source_tier": "query_seed",
+          "confidence": 0.6,
+          "requirement_statement": "KanoMode は競合や既存 workflow と比較できる証拠を保持するべきである。",
+          "bias_note": "comparison query は SEO ノイズや前提違いを含みやすい。",
+          "kill_condition": "比較証拠が要求判断に寄与しないことが pilot で確認された場合は補助情報に降格する。",
+          "templates": {
+            "ja-JP": "{topic} 比較 乗り換え 競合 workflow",
+            "en-US": "{topic} compare alternative workflow switched from"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -20,6 +20,19 @@
 | AC-10 | 観測点契約 | 最小観測点を後から集計できる field / log の定義が README / specification / evaluation にある |
 | AC-11 | 標準チェーン | README / specification が `research -> insight -> gate -> sync -> notify` を正規経路として扱う |
 
+### 2.1 KanoMode Acceptance Criteria
+
+KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mode.md) を正本とする。
+
+| ID | 観点 | 判定方法 |
+| --- | --- | --- |
+| AC-K01 | Kano preset | `kano_requirements_hybrid` preset が存在する |
+| AC-K02 | offline eval | live web なしで fixture / cached corpus による評価導線がある |
+| AC-K03 | Kano artifact | `kano.json` が `schema_version`, `mode`, `request_id`, `topic`, `persona_modes`, `source_summary`, `kano_candidates`, `known_biases` を持つ。`kano_candidates[*]` が `candidate_id`, `statement`, `kano_type`, `confidence`, `evidence`, `persona_votes`, `bias_note`, `kill_condition` を持つ |
+| AC-K04 | requirements packet | `requirements_packet.json` が `schema_version`, `packet_id`, `derived_from`, `product_context`, `assumptions`, `requirements`, `release_readiness_prelude` を持つ。`requirements[*]` が `requirement_id`, `title`, `statement`, `kano_type`, `priority`, `confidence`, `evidence_refs`, `kpi`, `acceptance_criteria`, `risks`, `manual_bb_focus`, `downstream_hooks`, `gate_policy`, `bias_note`, `kill_condition` を持つ |
+| AC-K05 | safety fields | confidence, bias_note, kill_condition 欠損時に packet 昇格しない |
+| AC-K06 | compatibility | 既存 preset の `python -m unittest discover tests` が通る |
+
 ## 3. 検証コマンド
 
 ```powershell
@@ -27,6 +40,7 @@ cd research-runtime
 python -m unittest discover tests
 python -m rand_research.cli heartbeat --dry-run --max-items 2
 python -m rand_research.cli env-check
+python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 ```
 
 installer の解決確認:
@@ -46,6 +60,7 @@ cd ..\r-and-d-agent-installer
 - [ ] installer README に `CODEX_DEV_ROOT` と override JSON の説明がある
 - [ ] runtime README に単体依存と workspace 依存の説明がある
 - [ ] specification に schema compatibility policy と最小観測点がある
+- [ ] KanoMode の offline eval で `kano.json` と `requirements_packet.json` が保存される
 
 ## 5. 残留リスク
 

@@ -8,6 +8,7 @@ from uuid import uuid4
 from rand_research.config import load_preset, load_runtime_config
 from rand_research.fetchers import collect_source
 from rand_research.integrations import run_gate, run_insight, write_memx_journal, write_tracker_sync
+from rand_research.kano import build_kano_artifacts
 from rand_research.models import ExecutionContext, NormalizedItem, RunMeta
 from rand_research.paths import workspace_root
 from rand_research.reports import save_run_outputs
@@ -123,7 +124,8 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
         errors,
     )
 
-    insight_payload = run_insight(items) if runtime["enable_insight"] else _disabled_payload("insight")
+    insight_enabled = runtime["enable_insight"] and preset.get("insight_enabled", True)
+    insight_payload = run_insight(items) if insight_enabled else _disabled_payload("insight")
     dependency_health["insight"] = insight_payload["status"]
     if insight_payload["status"] != "ok":
         status_reasons.append("insight_failed")
@@ -139,8 +141,14 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
     if gate_payload["status"] != "ok":
         status_reasons.append("gate_failed")
 
+    extra_payloads: dict[str, dict[str, Any]] = {}
+    if preset.get("mode") == "kano_requirements":
+        extra_payloads = build_kano_artifacts(items, preset, run_id)
+
     meta.finish()
     artifact_paths = _expected_artifacts(run_dir)
+    if extra_payloads:
+        artifact_paths.update({f"{name}_json": str(run_dir / f"{name}.json") for name in extra_payloads})
 
     try:
         memx_record = write_memx_journal(memory_path, run_id, preset_name, items, artifact_paths) if runtime["enable_memx"] else _disabled_log("memx", run_id, preset_name)
@@ -203,6 +211,7 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
             final_status,
             _unique(status_reasons),
             dependency_health,
+            extra_payloads or None,
         )
     except Exception as exc:
         dependency_health["report"] = "failed"

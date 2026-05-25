@@ -5,6 +5,7 @@
 ## 入口
 
 - CLI: `python -m rand_research.cli run-once --preset paper_arxiv_ai_recent`
+- CLI: `python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5`
 - CLI: `python -m rand_research.cli run-schedule`
 - CLI: `python -m rand_research.cli heartbeat --dry-run`
 - PowerShell: `./scripts/run-once.ps1 -Preset paper_arxiv_ai_recent`
@@ -29,6 +30,7 @@
   - notify 段への handoff
 - 出力
   - `runs/<run_id>/` の 8 artifact
+  - KanoMode preset では追加で `kano.json` と `requirements_packet.json`
   - `state/` 配下の更新済み snapshot
 
 ## 依存の考え方
@@ -114,6 +116,13 @@ LLM timeout は最低 600 秒、収集 timeout は最低 180 秒へ底上げし�
 
 すべての JSON artifact は `schema_version: "1.0"` を持ちます。
 
+KanoMode preset では、上記に加えて次を保存します。
+
+- `kano.json`
+  - evidence cluster、Kano 分類、persona votes、confidence、bias_note、kill_condition
+- `requirements_packet.json`
+  - requirements、KPI、acceptance、risks、downstream_hooks、gate_policy
+
 ## 最小観測点
 
 後から集計できる最小観測点は次です。
@@ -132,11 +141,15 @@ LLM timeout は最低 600 秒、収集 timeout は最低 180 秒へ底上げし�
 
 ## preset と heartbeat
 
-preset は次の 3 つです。
+preset は次の 5 つです。
 
 - `paper_arxiv_ai_recent`
 - `ai_news_official`
 - `ai_watch_daily`
+- `kano_requirements_hybrid`
+- `kano_requirements_offline_eval`
+
+KanoMode の通常検証では live web search を必須にせず、`kano_requirements_offline_eval` の fixture / cached corpus を正本にします。
 
 heartbeat の自動選択は `configs/heartbeat.json` を正本にします。現在のルールは JST 基準で次です。
 
@@ -154,4 +167,5 @@ repo ルートから次で確認できます。
 python -m unittest discover tests
 python -m rand_research.cli heartbeat --dry-run --max-items 2
 python -m rand_research.cli env-check
+python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 ```

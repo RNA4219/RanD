@@ -95,6 +95,13 @@ flowchart LR
 | `paper_arxiv_ai_recent` | single | arXiv cs.AI recent と論文補助ソースを巡回 |
 | `ai_news_official` | single | 主要 AI 公式ニュースを巡回 |
 | `ai_watch_daily` | composed | 上記 2 preset の合成 |
+| `kano_requirements_hybrid` | single | query family から Kano evidence seed を生成し、要求定義 packet を作る |
+| `kano_requirements_offline_eval` | single | fixture evidence で KanoMode の artifact 契約を再現検証する |
+
+補足:
+
+- preset は `insight_enabled: false` を指定できる。
+- KanoMode MVP は deterministic な evidence-to-packet 変換を正本とし、offline eval では `insight-agent` の有無で status が揺れないよう `insight_enabled: false` を使う。
 
 ### 4.3 heartbeat ルール
 
@@ -159,6 +166,11 @@ taskstate への写像:
 - `tracker_sync.json`
 - `state_context.json`
 
+KanoMode preset では、固定 artifact に加えて次を保存する。
+
+- `kano.json`
+- `requirements_packet.json`
+
 ### 5.2 schema version
 
 すべての JSON artifact は root に `schema_version` を持つ。初版は `"1.0"` とする。
@@ -174,6 +186,13 @@ taskstate への写像:
   - root と各 `entry` の両方に `schema_version`
 - `tracker_sync.json`
   - root と各 `event` の両方に `schema_version`
+- `kano.json`
+  - 必須: `schema_version`, `mode`, `request_id`, `topic`, `persona_modes`, `source_summary`, `kano_candidates`
+  - 各 candidate は `candidate_id`, `statement`, `kano_type`, `confidence`, `evidence`, `persona_votes`, `bias_note`, `kill_condition` を持つ
+- `requirements_packet.json`
+  - 必須: `schema_version`, `packet_id`, `derived_from`, `product_context`, `requirements`, `release_readiness_prelude`
+  - 各 requirement は `requirement_id`, `statement`, `kano_type`, `priority`, `confidence`, `evidence_refs`, `kpi`, `acceptance_criteria`, `risks`, `downstream_hooks`, `gate_policy` を持つ
+  - `confidence`, `bias_note`, `kill_condition` が欠ける candidate は packet に昇格しない
 
 ### 5.3 compatibility policy
 
@@ -239,6 +258,7 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 
 - unit test の正本は fixture ベースの fetcher テストとする
 - live fetch や live LLM 実行は受け入れ基準の必須にはしない
+- KanoMode の通常検証は `kano_requirements_offline_eval` と `tests/fixtures/kano_evidence.json` を正本にする
 - 最低限の回帰対象
   - arXiv HTML
   - OpenAI / Anthropic / DeepMind RSS
@@ -246,3 +266,4 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
   - heartbeat 選択
   - report schema
   - status 集約
+  - Kano query seed / fixture / requirements packet

@@ -96,6 +96,44 @@ class ReportsTests(unittest.TestCase):
             self.assertEqual(tracker_json['events'][0]['schema_version'], SCHEMA_VERSION)
             self.assertEqual(tracker_json['events'][0]['sync_id'], 'sync-1')
 
+    def test_save_run_outputs_writes_extra_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir) / 'run-002'
+            meta = RunMeta(
+                run_id='run-002',
+                preset='kano_requirements_offline_eval',
+                started_at='2026-05-26T00:00:00Z',
+                finished_at='2026-05-26T00:05:00Z',
+                max_items=0,
+                save_dir=str(run_dir),
+            )
+
+            artifacts, report = save_run_outputs(
+                run_dir,
+                meta,
+                [],
+                {'schema_version': SCHEMA_VERSION, 'status': 'ok', 'mode': 'disabled', 'results': []},
+                {'schema_version': SCHEMA_VERSION, 'status': 'ok', 'mode': 'disabled', 'results': []},
+                {'task_id': 'task-2', 'status': 'done'},
+                {'entry_id': 'memx-2', 'status': 'ok'},
+                {'sync_id': 'sync-2', 'status': 'ok'},
+                {},
+                {},
+                'ok',
+                [],
+                {'sources': 'ok', 'state': 'ok', 'report': 'ok', 'insight': 'ok', 'gate': 'ok', 'memx': 'ok', 'tracker': 'ok'},
+                {
+                    'kano': {'schema_version': SCHEMA_VERSION, 'mode': 'kano'},
+                    'requirements_packet': {'schema_version': SCHEMA_VERSION, 'requirements': []},
+                },
+            )
+
+            self.assertIn('kano_json', artifacts)
+            self.assertIn('requirements_packet_json', artifacts)
+            self.assertTrue((run_dir / 'kano.json').exists())
+            self.assertTrue((run_dir / 'requirements_packet.json').exists())
+            self.assertEqual(report['kano']['mode'], 'kano')
+
 
 if __name__ == '__main__':
     unittest.main()

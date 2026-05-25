@@ -1,0 +1,45 @@
+{
+  "name": "kano_requirements_offline_eval",
+  "category": "requirements",
+  "mode": "kano_requirements",
+  "topic": "RanD KanoMode offline evaluation",
+  "seed_urls": [
+    "fixture://tests/fixtures/kano_evidence.json"
+  ],
+  "allowed_domains": [],
+  "query_template": "Evaluate Kano requirements packet generation from cached fixture evidence.",
+  "prompt_template": "kano_requirements_prompt.md",
+  "max_items": 8,
+  "output_profile": "kano_requirements_packet",
+  "insight_enabled": false,
+  "gate_enabled": false,
+  "persona_modes": [
+    "researcher",
+    "user",
+    "gatekeeper",
+    "product"
+  ],
+  "locales": [
+    "ja-JP",
+    "en-US"
+  ],
+  "freshness_window_days": 180,
+  "product_context": {
+    "name": "RanD KanoMode",
+    "domain": "research-runtime requirements discovery",
+    "target_segment": "R&D agent operators",
+    "locales": [
+      "ja-JP",
+      "en-US"
+    ]
+  },
+  "sources": [
+    {
+      "name": "kano_fixture_evidence",
+      "kind": "kano_evidence",
+      "fetcher": "kano_fixture_json",
+      "fixture_path": "tests/fixtures/kano_evidence.json",
+      "priority": 1
+    }
+  ]
+}

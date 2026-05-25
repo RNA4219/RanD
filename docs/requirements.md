@@ -110,3 +110,12 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 - AC-07: README に Quickstart、heartbeat 選択規則、artifact 契約がある
 - AC-08: README と specification に `research -> insight -> gate -> sync -> notify` の正規チェーンがある
 - AC-09: 最小観測点を後から集計できる field / log 契約が定義されている
+
+## 7. 拡張要件
+
+KanoMode は、既存の research runtime に追加する要求定義支援モードとして別紙で管理する。
+
+- [RanD KanoMode 要件定義](requirements_kano_mode.md)
+- [KanoMode P0 Task Seed](tasks/TASK-20260526-01-kano-mode-p0.md)
+
+KanoMode の検収では、既存の `research -> insight -> gate -> sync -> notify` チェーンと artifact 契約を壊さないことを前提に、`kano.json` と `requirements_packet.json` の追加契約を確認する。

@@ -19,8 +19,9 @@ def build_report_payload(
     pre_state_context: dict[str, Any],
     post_state_context: dict[str, Any],
     artifacts: dict[str, str],
+    extra_payloads: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "schema_version": SCHEMA_VERSION,
         "status": status,
         "status_reason": status_reason,
@@ -36,6 +37,9 @@ def build_report_payload(
         "memx_refs": [memx_record],
         "tracker_sync_refs": [tracker_event],
     }
+    if extra_payloads:
+        payload.update(extra_payloads)
+    return payload
 
 
 def save_run_outputs(
@@ -52,6 +56,7 @@ def save_run_outputs(
     status: str,
     status_reason: list[str],
     dependency_health: dict[str, str],
+    extra_payloads: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[dict[str, str], dict[str, Any]]:
     run_dir.mkdir(parents=True, exist_ok=True)
     paths = {
@@ -64,6 +69,9 @@ def save_run_outputs(
         "memx_journal_json": run_dir / "memx_journal.json",
         "state_context_json": run_dir / "state_context.json",
     }
+    if extra_payloads:
+        for name in extra_payloads:
+            paths[f"{name}_json"] = run_dir / f"{name}.json"
     artifacts = {key: str(path) for key, path in paths.items()}
     state_context = {
         "schema_version": SCHEMA_VERSION,
@@ -82,6 +90,7 @@ def save_run_outputs(
         pre_state_context,
         post_state_context,
         artifacts,
+        extra_payloads,
     )
     meta_payload = meta.to_dict() | {
         "status": status,
@@ -97,6 +106,8 @@ def save_run_outputs(
     paths["tracker_sync_json"].write_text(json.dumps(tracker_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     paths["memx_journal_json"].write_text(json.dumps(memx_payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     paths["state_context_json"].write_text(json.dumps(state_context, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    for name, payload in (extra_payloads or {}).items():
+        paths[f"{name}_json"].write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     paths["report_md"].write_text(render_markdown(meta, items, insight_payload, gate_payload, state_context, status, status_reason, dependency_health), encoding="utf-8")
     return artifacts, report_payload
 

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 
 from rand_research.models import NormalizedItem
+from rand_research.paths import workspace_root
 
 
 def fetch_text(url: str, user_agent: str, timeout_seconds: int) -> str:
@@ -67,6 +70,11 @@ def collect_source(source: dict[str, Any], user_agent: str, timeout_seconds: int
                 continue
         html_text = fetch_text(source["url"], user_agent, timeout_seconds)
         return parse_generic_links(source, html_text, max_items)
+    if fetcher == "kano_query_seed":
+        return build_kano_query_seed_items(source, max_items)
+    if fetcher == "kano_fixture_json":
+        fixture_path = workspace_root() / source["fixture_path"]
+        return parse_kano_fixture_json(source, fixture_path, max_items)
     raise ValueError(f"Unknown fetcher: {fetcher}")
 
 
@@ -169,6 +177,81 @@ def parse_rss_items(source: dict[str, Any], rss_text: str, max_items: int) -> li
                 priority=max(max_items - len(items), 1),
                 high_priority=len(items) < 3,
                 metadata={"seed_url": source["url"]},
+            )
+        )
+    return items
+
+
+def build_kano_query_seed_items(source: dict[str, Any], max_items: int) -> list[NormalizedItem]:
+    topic = source.get("topic", "RanD KanoMode")
+    locales = source.get("locales", ["ja-JP", "en-US"])
+    query_families = source.get("query_families", [])
+    items: list[NormalizedItem] = []
+    for family in query_families:
+        family_name = family["name"]
+        kano_type = family.get("kano_type", "questionable")
+        for locale in locales:
+            template = family.get("templates", {}).get(locale) or family.get("template") or "{topic} {family}"
+            query = template.format(topic=topic, family=family_name)
+            item_id = _slugify(f"{source['name']}-{family_name}-{locale}")[:80]
+            items.append(
+                NormalizedItem(
+                    id=item_id,
+                    kind="kano_evidence",
+                    source_name=source["name"],
+                    url=f"query://{urllib.parse.quote(query)}",
+                    title=f"{topic}: {family_name} evidence search ({locale})",
+                    summary=f"Offline query seed for {family_name}: {query}",
+                    claims=[f"Search family {family_name} can collect Kano evidence for {topic}"],
+                    evidence=[f"Query seed: {query}"],
+                    tags=["kano", "query_seed", family_name, locale],
+                    priority=max(max_items - len(items), 1),
+                    high_priority=len(items) < 3,
+                    metadata={
+                        "source_type": family_name,
+                        "source_tier": family.get("source_tier", "query_seed"),
+                        "locale": locale,
+                        "kano_type": kano_type,
+                        "kano_candidate_id": family.get("candidate_id", family_name),
+                        "requirement_statement": family.get("requirement_statement", f"Collect {family_name} evidence for {topic}"),
+                        "confidence": family.get("confidence", 0.6),
+                        "bias_note": family.get("bias_note", "Query seed requires evidence validation before promotion."),
+                        "kill_condition": family.get("kill_condition", "No supporting evidence is found in offline or live review."),
+                        "freshness_days": None,
+                    },
+                )
+            )
+            if len(items) >= max_items:
+                return items
+    return items
+
+
+def parse_kano_fixture_json(source: dict[str, Any], fixture_path: Path, max_items: int) -> list[NormalizedItem]:
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    records = payload.get("items", payload if isinstance(payload, list) else [])
+    items: list[NormalizedItem] = []
+    for record in records[:max_items]:
+        metadata = dict(record.get("metadata", {}))
+        metadata.setdefault("source_type", record.get("source_type", "fixture"))
+        metadata.setdefault("source_tier", record.get("source_tier", "user_signal"))
+        metadata.setdefault("locale", record.get("locale", "ja-JP"))
+        metadata.setdefault("freshness_days", record.get("freshness_days"))
+        item_id = record.get("id") or _slugify(f"{source['name']}-{record.get('title', len(items))}")[:80]
+        items.append(
+            NormalizedItem(
+                id=item_id,
+                kind=record.get("kind", "kano_evidence"),
+                source_name=source["name"],
+                url=record.get("url", f"fixture://{item_id}"),
+                title=record.get("title", item_id),
+                published_at=record.get("published_at"),
+                summary=record.get("summary", ""),
+                claims=record.get("claims", []),
+                evidence=record.get("evidence", []),
+                tags=record.get("tags", ["kano", "fixture"]),
+                priority=record.get("priority", max(max_items - len(items), 1)),
+                high_priority=record.get("high_priority", len(items) < 3),
+                metadata=metadata,
             )
         )
     return items

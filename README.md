@@ -119,7 +119,7 @@ JSON artifact には `schema_version: "1.0"` を持たせています。`report.
 
 ## preset と heartbeat の選択規則
 
-現在の preset は次の 3 つです。
+現在の preset は次の 5 つです。
 
 - `paper_arxiv_ai_recent`
   - [arXiv cs.AI recent](https://arxiv.org/list/cs.AI/recent) を主入口にし、Hugging Face Papers と Papers with Code を補助ソースに使います。
@@ -127,6 +127,10 @@ JSON artifact には `schema_version: "1.0"` を持たせています。`report.
   - OpenAI News、Anthropic News、Google DeepMind Blog、Google AI Blog を巡回します。
 - `ai_watch_daily`
   - `paper_arxiv_ai_recent` と `ai_news_official` の合成 preset です。
+- `kano_requirements_hybrid`
+  - KanoMode の query family から要求候補 evidence seed を生成し、`kano.json` と `requirements_packet.json` を保存します。
+- `kano_requirements_offline_eval`
+  - fixture evidence だけで KanoMode の artifact 契約を検証する再現性重視の preset です。
 
 heartbeat の自動選択は JST 基準で次の規則です。
 
@@ -191,4 +195,11 @@ python -m rand_research.cli heartbeat --dry-run --max-items 5
 ```powershell
 cd research-runtime
 .\scripts\env-check.ps1
+```
+
+KanoMode の offline eval を回す:
+
+```powershell
+cd research-runtime
+python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 ```
