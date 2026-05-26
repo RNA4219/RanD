@@ -86,3 +86,14 @@ Audit mode sample artifact:
   - 実装fixtureではない
 
 仕様変更時は、要件、仕様、検収、Task Seed、引継ぎ資料のうち影響するものを同時に更新する。
+
+## 7. macOS / 外部 API fallback 追記
+
+2026-05-26 時点で、runtime には macOS / Linux 用の shell wrapper と、Insight / Gate の外部 API 優先実行を追加している。
+
+- macOS / Linux runtime 入口: `run-research-once.sh`, `run-research-schedule.sh`, `research-runtime/scripts/*.sh`
+- installer の macOS / Linux 入口: `install-r-and-d-agent.sh` (`pwsh` 必須)
+- 外部 API: `RAND_INSIGHT_API_URL`, `RAND_GATE_API_URL`
+- fallback subagent: `RAND_INSIGHT_SUBAGENT_CMD`, `RAND_GATE_SUBAGENT_CMD`
+
+検証時は `cd research-runtime && uv run python -m unittest discover tests` を正本にする。

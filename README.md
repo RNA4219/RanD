@@ -2,10 +2,12 @@
 
 `RanD` は、R&D Agent アーキテクチャを「導入層」と「実行層」に分けて束ねる親リポジトリです。固定コミットで周辺 OSS を導入し、論文・AI ニュース調査をローカル実行と Kestra 実行の両方で回しながら、通常運転の正規チェーン `research -> insight -> gate -> sync -> notify` を保つ母艦として振る舞います。
 
+最新リリース: [v0.2.0](docs/releases/v0.2.0.md)
+
 ## Quickstart: 5分で1回回す
 
-1. `install-r-and-d-agent.bat`
-2. `run-research-once.bat paper_arxiv_ai_recent`
+1. Windows: `install-r-and-d-agent.bat` / macOS・Linux: `./install-r-and-d-agent.sh`
+2. Windows: `run-research-once.bat paper_arxiv_ai_recent` / macOS・Linux: `./run-research-once.sh paper_arxiv_ai_recent`
 3. `research-runtime/runs/<run_id>/report.md` を開く
 
 最短導線だけ先に使いたい場合は上の 3 手順で十分です。設計の正本を確認したい場合は次の順で読んでください。
@@ -24,6 +26,9 @@
   - [install-r-and-d-agent.bat](install-r-and-d-agent.bat)
   - [run-research-once.bat](run-research-once.bat)
   - [run-research-schedule.bat](run-research-schedule.bat)
+  - [install-r-and-d-agent.sh](install-r-and-d-agent.sh)
+  - [run-research-once.sh](run-research-once.sh)
+  - [run-research-schedule.sh](run-research-schedule.sh)
 
 ## リポジトリが束ねる2層
 
@@ -56,7 +61,7 @@
 2. `run-research-once.bat <preset>` か `run-research-schedule.bat` が `research-runtime` を起動します。
 3. `research-runtime` は `agent-taskstate` を run / state / decision の正本として読み、`memx-resolver` を knowledge / read history の正本として参照します。
 4. source を収集し、`NormalizedItem` に正規化し、既読 URL と重複を整理します。
-5. `insight-agent` と `experiment-gate` を順に呼び、正規チェーン `research -> insight -> gate -> sync -> notify` に沿って handoff します。replay は途中 stage から再開可能です。
+5. Insight / Gate は外部 API を優先し、失敗時はサブエージェント fallback、peer repo Python API、deterministic fallback の順で劣化しながら、正規チェーン `research -> insight -> gate -> sync -> notify` に沿って handoff します。replay は途中 stage から再開可能です。
 6. `tracker-bridge-materials` は外部同期 payload の反映先として扱い、`agent-taskstate` 形式の task state、`memx-resolver` 向け journal、`tracker-bridge-materials` 向け sync payload を更新します。
 7. `research-runtime/runs/<run_id>/` に 8 種の artifact を保存し、通知・再送・重複抑止のための集計元フィールドも残します。
 
@@ -89,7 +94,15 @@ JSON artifact には `schema_version: "1.0"` を持たせています。`report.
 
 ## KanoMode とは
 
-KanoMode は、通常の調査 run で集めた evidence や fixture evidence を、要件定義に使える形へ変換する RanD の要求分析モードです。検索証拠をそのまま要件にせず、Kano 分類を挟むことで「無いと不満になる当たり前品質」「良いほど満足が上がる比較品質」「あるとうれしい魅力品質」「不要または逆効果の品質」を分けます。
+KanoMode は、狩野モデル参照型の要求分析です。狩野モデルそのものを実施する機能ではありません。
+
+本来の狩野モデルは、ユーザーに「その機能がある場合 / ない場合」を尋ねる調査によって品質属性を分類します。RanD ではその正式調査を行う代わりに、ネット上の不満、称賛、比較、期待、離脱理由、競合言及などの公開証跡を集め、要求候補がどの品質属性に近いかを仮説化します。
+
+正直に言えば、これは低コストな近似です。狩野モデルの厳密な調査結果ではなく、ネットに残った反応から「無いと不満になりそう」「良いほど満足が上がりそう」「あるとうれしいが必須ではなさそう」「逆に嫌がられそう」といった要求の性質を推定します。
+
+特に一元的品質は、競合比較や改善要求に現れやすいものとして扱います。たとえば「もっと速いほどよい」「精度が高いほどよい」「手間が少ないほどよい」「価格に対する価値が高いほどよい」といった反応を集め、良し悪しが満足度に連続的に効いていそうな要求を `performance` として仮分類します。
+
+このため、KanoMode の出力は最終判定ではありません。検索証拠をそのまま要件にせず、`must_be`、`performance`、`attractive`、`reverse`、`questionable` などの仮分類を挟み、confidence、bias_note、kill_condition を付けて、人間レビューや downstream gate に渡します。名前は KanoMode ですが、実体は「Kano-inspired requirements analysis」、つまり狩野モデルのアイデアを借りたネット証跡ベースの要求分析です。
 
 KanoMode には 2 つの使い方があります。
 
@@ -103,11 +116,11 @@ KanoMode には 2 つの使い方があります。
 KanoMode preset では、通常の 8 artifact に加えて次を保存します。
 
 - `kano.json`
-  - evidence cluster、Kano 分類、persona votes、confidence、bias_note、kill_condition を保持します。
+  - evidence cluster、Kano参照の仮分類、persona votes、confidence、bias_note、kill_condition を保持します。
 - `requirements_packet.json`
   - discovery mode の主契約です。requirements、KPI、acceptance、risks、downstream_hooks、gate_policy を保持します。
 - `requirements_audit_packet.json`
-  - audit mode の主契約です。既存要件ごとの Kano 再分類、testability、implementation_alignment、issues、suggested_action、gate verdict、gate_summary を保持します。
+  - audit mode の主契約です。既存要件ごとの Kano参照の再分類、testability、implementation_alignment、issues、suggested_action、gate verdict、gate_summary を保持します。
 
 KanoMode の詳細な要件・仕様・検収記録は次を正本にします。
 
@@ -242,6 +255,27 @@ python -m rand_research.cli run-once --preset kano_requirements_audit --max-item
 ```
 
 Windows 環境で `python` が Windows Store stub に当たる場合は、`uv run python` で同じコマンドを実行してください。
+
+macOS / Linux では次の入口を使えます。
+
+```bash
+./install-r-and-d-agent.sh
+./run-research-once.sh paper_arxiv_ai_recent
+./run-research-schedule.sh
+cd research-runtime
+./scripts/env-check.sh
+```
+
+`install-r-and-d-agent.sh` は PowerShell installer を `pwsh` で呼び出します。runtime の `*.sh` は `bash` と `python` だけで動きます。
+
+Insight / Gate を外部 API 経由で動かす場合は、必要に応じて次を設定します。API が失敗した場合は、設定済みのサブエージェントコマンドへ同じ JSON payload を stdin で渡します。
+
+```bash
+export RAND_INSIGHT_API_URL="https://example.test/insight"
+export RAND_GATE_API_URL="https://example.test/gate"
+export RAND_INSIGHT_SUBAGENT_CMD="your-insight-agent-command"
+export RAND_GATE_SUBAGENT_CMD="your-gate-agent-command"
+```
 
 ## KanoMode MVP 検証状況
 

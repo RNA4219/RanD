@@ -3,8 +3,11 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -98,11 +101,18 @@ def build_insight_payload(item: NormalizedItem) -> dict[str, Any]:
 def run_insight(items: list[NormalizedItem]) -> dict[str, Any]:
     ensure_repo_paths()
     load_env_from_peer_repos()
+    api_payloads = [build_insight_payload(item) for item in items]
+    api_result, api_error = _run_external_api("insight", api_payloads)
+    if api_result is not None:
+        return api_result
+    if api_error:
+        subagent_result = _run_subagent("insight", api_payloads, api_error)
+        if subagent_result is not None:
+            return subagent_result
     try:
         insight_core = importlib.import_module("insight_core")
         results = []
-        for item in items:
-            payload = build_insight_payload(item)
+        for payload in api_payloads:
             results.append(insight_core.run(request_dict=payload))
         status = _aggregate_nested_status(results)
         return {
@@ -113,6 +123,9 @@ def run_insight(items: list[NormalizedItem]) -> dict[str, Any]:
             "error": None if status == "ok" else _summarize_nested_failures("insight", results),
         }
     except Exception as exc:
+        subagent_result = _run_subagent("insight", api_payloads, str(exc))
+        if subagent_result is not None:
+            return subagent_result
         return {
             "schema_version": SCHEMA_VERSION,
             "status": "degraded",
@@ -135,6 +148,14 @@ def run_gate(items: list[NormalizedItem], dependency_health: dict[str, str]) -> 
             "error": None,
             "dependency_health": dependency_health,
         }
+    api_requests = [_build_gate_api_payload(item, dependency_health) for item in targets]
+    api_result, api_error = _run_external_api("gate", api_requests, dependency_health)
+    if api_result is not None:
+        return api_result
+    if api_error:
+        subagent_result = _run_subagent("gate", api_requests, api_error, dependency_health)
+        if subagent_result is not None:
+            return subagent_result
     try:
         experiment_gate = importlib.import_module("experiment_gate")
         results = []
@@ -176,6 +197,9 @@ def run_gate(items: list[NormalizedItem], dependency_health: dict[str, str]) -> 
             "dependency_health": dependency_health,
         }
     except Exception as exc:
+        subagent_result = _run_subagent("gate", api_requests, str(exc), dependency_health)
+        if subagent_result is not None:
+            return subagent_result
         return {
             "schema_version": SCHEMA_VERSION,
             "status": "degraded",
@@ -267,6 +291,12 @@ def check_dependencies() -> dict[str, Any]:
         "llm_max_retries": env_report["timeout_report"]["llm_max_retries"],
         "llm_retry_backoff_seconds": env_report["timeout_report"]["llm_retry_backoff_seconds"],
     }
+    report["external_api"] = {
+        "insight_api_configured": bool(os.environ.get("RAND_INSIGHT_API_URL")),
+        "gate_api_configured": bool(os.environ.get("RAND_GATE_API_URL")),
+        "insight_subagent_configured": bool(os.environ.get("RAND_INSIGHT_SUBAGENT_CMD")),
+        "gate_subagent_configured": bool(os.environ.get("RAND_GATE_SUBAGENT_CMD")),
+    }
     return report
 
 
@@ -348,6 +378,164 @@ def _fallback_gate(item: NormalizedItem, dependency_health: dict[str, str]) -> d
         "reasoning_summary": item.summary or item.title,
         "dependency_health": dependency_health,
     }
+
+
+def _build_gate_api_payload(item: NormalizedItem, dependency_health: dict[str, str]) -> dict[str, Any]:
+    return {
+        "request_id": item.id,
+        "hypothesis": f"{item.title} should be evaluated as a small PoC candidate.",
+        "poc_spec": {
+            "objective": f"Verify whether {item.title} has practical follow-up value.",
+            "problem": item.summary or item.title,
+            "target_user_or_context": "RanD daily research watch",
+            "success_metrics": ["Actionable follow-up identified"],
+            "failure_or_abort_criteria": ["No meaningful differentiator found"],
+            "minimum_scope": "Read the item, summarize it, and define one small next step.",
+            "non_goals": ["Production rollout"],
+            "required_inputs_or_tools": [item.url],
+            "validation_plan": "Collect evidence and compare novelty, feasibility, and impact.",
+        },
+        "evidence_bundle": {
+            "claims": item.claims,
+            "sources": [item.url],
+            "gaps": ["Full manual review not completed yet"],
+        },
+        "decision_context": {
+            "chain": "research -> insight -> gate -> sync -> notify",
+            "dependency_health": dependency_health,
+        },
+    }
+
+
+def _run_external_api(
+    kind: str,
+    requests: list[dict[str, Any]],
+    dependency_health: dict[str, str] | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    url = os.environ.get(f"RAND_{kind.upper()}_API_URL")
+    if not url:
+        return None, None
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": kind,
+        "requests": requests,
+    }
+    if dependency_health is not None:
+        payload["dependency_health"] = dependency_health
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "RanDResearchRuntime/0.2",
+    }
+    token = os.environ.get(f"RAND_{kind.upper()}_API_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        response = _post_json(url, payload, headers, _integration_timeout_seconds())
+        results = _coerce_integration_results(response)
+        status = response.get("status") or _aggregate_nested_status(results)
+        result_payload = {
+            "schema_version": SCHEMA_VERSION,
+            "status": status,
+            "mode": f"{kind}-api",
+            "results": results,
+            "error": response.get("error") if status != "ok" else None,
+        }
+        if dependency_health is not None:
+            result_payload["dependency_health"] = dependency_health
+        return result_payload, None
+    except Exception as exc:
+        return None, f"{kind}_api_failed: {exc}"
+
+
+def _run_subagent(
+    kind: str,
+    requests: list[dict[str, Any]],
+    cause: str,
+    dependency_health: dict[str, str] | None = None,
+) -> dict[str, Any] | None:
+    command = os.environ.get(f"RAND_{kind.upper()}_SUBAGENT_CMD")
+    if not command:
+        return None
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": kind,
+        "fallback_cause": cause,
+        "requests": requests,
+    }
+    if dependency_health is not None:
+        payload["dependency_health"] = dependency_health
+    try:
+        completed = subprocess.run(
+            command,
+            input=json.dumps(payload, ensure_ascii=False),
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            shell=True,
+            timeout=_integration_timeout_seconds(),
+        )
+    except Exception as exc:
+        return _subagent_failure_payload(kind, f"{cause}; subagent_launch_failed: {exc}", dependency_health)
+    if completed.returncode != 0:
+        error = (completed.stderr or completed.stdout or "").strip()
+        return _subagent_failure_payload(kind, f"{cause}; subagent_failed: {error}", dependency_health)
+    try:
+        response = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        return _subagent_failure_payload(kind, f"{cause}; subagent_invalid_json: {exc}", dependency_health)
+    results = _coerce_integration_results(response)
+    status = response.get("status") or _aggregate_nested_status(results)
+    result_payload = {
+        "schema_version": SCHEMA_VERSION,
+        "status": status,
+        "mode": f"{kind}-subagent",
+        "results": results,
+        "error": response.get("error") if status != "ok" else None,
+    }
+    if dependency_health is not None:
+        result_payload["dependency_health"] = dependency_health
+    return result_payload
+
+
+def _subagent_failure_payload(kind: str, error: str, dependency_health: dict[str, str] | None = None) -> dict[str, Any]:
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "status": "degraded",
+        "mode": f"{kind}-subagent",
+        "results": [],
+        "error": error,
+    }
+    if dependency_health is not None:
+        payload["dependency_health"] = dependency_health
+    return payload
+
+
+def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str], timeout_seconds: int) -> dict[str, Any]:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {exc.code}: {body}") from exc
+
+
+def _coerce_integration_results(response: dict[str, Any]) -> list[dict[str, Any]]:
+    results = response.get("results", [])
+    if isinstance(results, list):
+        return [result for result in results if isinstance(result, dict)]
+    if isinstance(results, dict):
+        return [results]
+    return []
+
+
+def _integration_timeout_seconds() -> int:
+    return max(int(os.environ.get("RAND_INTEGRATION_TIMEOUT_SECONDS", "0") or 0), 30)
 
 
 def _load_log(path: Path, key: str) -> dict[str, Any]:

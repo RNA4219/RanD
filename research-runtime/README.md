@@ -11,6 +11,9 @@
 - PowerShell: `./scripts/run-once.ps1 -Preset paper_arxiv_ai_recent`
 - PowerShell: `./scripts/run-schedule.ps1`
 - PowerShell: `./scripts/env-check.ps1`
+- Bash: `./scripts/run-once.sh paper_arxiv_ai_recent`
+- Bash: `./scripts/run-schedule.sh`
+- Bash: `./scripts/env-check.sh`
 
 ## 入力 / 実行 / 出力
 
@@ -56,6 +59,15 @@
 - `agent-taskstate`: run / state / decision の正本
 - `memx-resolver`: knowledge / read history の正本
 - `tracker-bridge-materials`: 外部同期 payload の反映先
+
+Insight / Gate の実行は、外部 API を最優先にします。
+
+- `RAND_INSIGHT_API_URL`, `RAND_GATE_API_URL`: HTTP API endpoint
+- `RAND_INSIGHT_API_TOKEN`, `RAND_GATE_API_TOKEN`: 任意の bearer token
+- `RAND_INSIGHT_SUBAGENT_CMD`, `RAND_GATE_SUBAGENT_CMD`: API 失敗時に stdin JSON を受け取るサブエージェントコマンド
+- `RAND_INTEGRATION_TIMEOUT_SECONDS`: API / subagent timeout
+
+API とサブエージェントが使えない場合は、peer repo の Python API を試し、それも失敗したら deterministic fallback を `degraded` として保存します。
 
 ### 公開設定 / example / local 設定
 
@@ -121,25 +133,25 @@ state ファイルは atomic write で更新します。途中失敗で壊れた
 
 ## KanoMode
 
-KanoMode は、収集済み evidence や fixture evidence を要求定義向けの artifact に変換する実行モードです。通常の research chain を壊さず、`research -> insight -> gate -> sync -> notify` の流れに追加 artifact を載せます。
+KanoMode は、狩野モデルそのものを実施するものではなく、狩野モデルの品質分類を参照してネット証跡から要求候補を仮分類する実行モードです。正式なアンケートではなく、収集済み evidence や fixture evidence を要求定義向けの artifact に変換します。通常の research chain を壊さず、`research -> insight -> gate -> sync -> notify` の流れに追加 artifact を載せます。
 
-Discovery mode では、complaints / praise / compare / expectation などの Kano 信号をもとに要件候補を分類し、`requirements_packet.json` を生成します。この packet は、要求文、KPI、受け入れ条件、リスク、手動 BB 観点、downstream hook、gate policy を含みます。
+Discovery mode では、complaints / praise / compare / expectation などのネット上の信号をもとに要件候補を分類し、`requirements_packet.json` を生成します。特に `performance` は一元的品質をネット経由で疑似再現する分類で、競合比較、速度、精度、手間、価格など「良いほど満足が上がる」反応の束から推定します。この packet は、要求文、KPI、受け入れ条件、リスク、手動 BB 観点、downstream hook、gate policy を含みます。
 
-Audit mode では、既存要件定義を監査対象として読み、各要件を Kano 再分類、検収可能性、実装整合性、残リスクで評価します。結果は `requirements_audit_packet.json` に保存し、Requirement Definition Gate の `go / conditional_go / no_go` 判定として扱います。
+Audit mode では、既存要件定義を監査対象として読み、各要件を Kano参照の仮分類、検収可能性、実装整合性、残リスクで評価します。結果は `requirements_audit_packet.json` に保存し、Requirement Definition Gate の `go / conditional_go / no_go` 判定として扱います。
 
 KanoMode の受け入れでは live web search を必須にしません。再現性のある fixture / cached corpus による offline eval を正本にし、live search は pilot / shadow eval として扱います。
 
 KanoMode discovery preset では、上記に加えて次を保存します。
 
 - `kano.json`
-  - evidence cluster、Kano 分類、persona votes、confidence、bias_note、kill_condition
+  - evidence cluster、Kano参照の仮分類、persona votes、confidence、bias_note、kill_condition
 - `requirements_packet.json`
   - requirements、KPI、acceptance、risks、downstream_hooks、gate_policy
 
 KanoMode audit preset では、上記に加えて次を保存します。
 
 - `kano.json`
-  - audit evidence をもとにした Kano 再分類と gatekeeper vote
+  - audit evidence をもとにした Kano参照の再分類と gatekeeper vote
 - `requirements_audit_packet.json`
   - 既存要件ごとの `testability`, `implementation_alignment`, `issues`, `suggested_action`, `gate_verdict`
   - `gate_summary` に `go / conditional_go / no_go` の分布と overall assessment
@@ -191,6 +203,13 @@ python -m rand_research.cli heartbeat --dry-run --max-items 2
 python -m rand_research.cli env-check
 python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5
+```
+
+macOS / Linux では同じ確認を shell wrapper でも実行できます。
+
+```bash
+./scripts/env-check.sh
+./scripts/run-once.sh kano_requirements_offline_eval 5
 ```
 
 Windows 環境で `python` が Windows Store stub に当たる場合は、`uv run python` に置き換えて実行します。

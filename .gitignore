@@ -11,3 +11,4 @@ research-runtime/state/*.json
 research-runtime/artifacts/
 research-runtime/__pycache__/
 research-runtime/**/*.pyc
+research-runtime/src/*.egg-info/

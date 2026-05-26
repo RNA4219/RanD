@@ -31,6 +31,8 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 - fixture ベースの fetcher 回帰テスト
 - heartbeat / preset 選択規則の設定化と文書化
 - `agent-taskstate`, `memx-resolver`, `tracker-bridge-materials` との state / sync 連携
+- macOS / Linux からの shell 入口
+- Insight / Gate の外部 API 呼び出しと、API 失敗時のサブエージェント実行 fallback
 
 ### 2.2 Out of Scope
 
@@ -70,6 +72,9 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 | FR-R06 | source 全滅、state 読み書き失敗、report 保存失敗は `failed` で終了すること | unit test または実 run で確認できる |
 | FR-R08 | `dependency_health` は `sources`, `state`, `report`, `insight`, `gate`, `memx`, `tracker` を持ち、`report_save_failed` と `state_write_failed` を区別できること | report schema と unit test で確認できる |
 | FR-R07 | source 一部失敗、Insight/Gate/Memx/Tracker の個別失敗は `degraded` で終了すること | unit test または実 run で確認できる |
+| FR-R09 | Insight / Gate は外部 API URL が設定されている場合、最初に HTTP API を呼び出すこと | `RAND_INSIGHT_API_URL`, `RAND_GATE_API_URL` を使う unit test で確認できる |
+| FR-R10 | 外部 API が失敗した場合、設定済みのサブエージェントコマンドへ同一 payload を stdin JSON で渡せること | `RAND_INSIGHT_SUBAGENT_CMD`, `RAND_GATE_SUBAGENT_CMD` を使う unit test で確認できる |
+| FR-R11 | API / サブエージェント / 直接 import / deterministic fallback の順で段階的に劣化し、最終 fallback 利用時は `degraded` として観測できること | artifact の `mode`, `status`, `error` で確認できる |
 
 ### 4.3 Artifact / Schema
 
@@ -98,6 +103,7 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 | NFR-03 | `research-runtime` は単体依存と workspace 依存を分けて説明すること | runtime README に表現がある |
 | NFR-04 | fixture テストを正本にし、live fetch を受け入れ条件にしないこと | evaluation に記載がある |
 | NFR-05 | 最小観測点を後から集計できる field / log 契約を持つこと | README / specification / evaluation に記載がある |
+| NFR-06 | macOS / Linux では `bash` と `python` で runtime を実行でき、installer は `pwsh` がある場合に同じ PowerShell 実体を再利用できること | `.sh` 入口が存在し docs に記載されている |
 
 ## 6. 受け入れ条件
 
@@ -110,6 +116,8 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 - AC-07: README に Quickstart、heartbeat 選択規則、artifact 契約がある
 - AC-08: README と specification に `research -> insight -> gate -> sync -> notify` の正規チェーンがある
 - AC-09: 最小観測点を後から集計できる field / log 契約が定義されている
+- AC-10: macOS / Linux 向けに `*.sh` の実行入口があり、runtime は PowerShell 非依存で起動できる
+- AC-11: Insight / Gate の外部 API 優先とサブエージェント fallback が unit test で確認できる
 
 ## 7. 拡張要件
 

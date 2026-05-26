@@ -19,7 +19,11 @@ workflow_reference:
 
 ## 1. 目的
 
-RanD に KanoMode を追加し、既存の `research -> insight -> gate -> sync -> notify` の正規チェーンを壊さずに、検索証拠から Kano 分類と要求定義パケットを生成できるようにする。
+RanD に KanoMode を追加し、既存の `research -> insight -> gate -> sync -> notify` の正規チェーンを壊さずに、検索証拠から Kano 参照の仮分類と要求定義パケットを生成できるようにする。
+
+ここでいう KanoMode は、狩野モデルそのものを実施するものではない。機能的質問 / 非機能的質問による正式な狩野モデル調査ではなく、ネット上の不満、称賛、比較、期待、離脱理由、公式情報を evidence として集め、要求候補が「当たり前品質」「一元的品質」「魅力品質」「逆品質」などのどれに近いかを推定する要求分析アダプタである。
+
+特に一元的品質は、ネットを介して疑似的に再現する。競合比較、速度、精度、手間、価格、安定性などに対する反応を集め、「良いほど満足が上がり、悪いほど不満が増える」傾きがあるかを仮説化する。したがって出力は最終判定ではなく、人間レビュー、Acceptance、Evidence、下流 gate に渡すための仮説付き packet として扱う。
 
 本要件定義の目的は、調査レポートである [requirements_2.md](requirements_2.md) を実装可能な契約へ圧縮し、`workflow-cookbook` の Task Seed / Acceptance / Evidence 運用に載せることである。
 
@@ -32,7 +36,7 @@ KanoMode は次の 2 モードを持つ。
 
 現在の RanD は、preset に基づく research runtime、`insight-agent` 連携、`experiment-gate` 連携、artifact 保存を持つ。一方で、KanoMode に必要な次の契約はまだ存在しない。
 
-- complaint / praise / compare / expectation など、Kano 信号を拾う検索クエリ駆動の証拠収集
+- complaint / praise / compare / expectation など、Kano 参照の品質信号を拾う検索クエリ駆動の証拠収集
 - 単一 item ではなく、要求候補クラスタ単位で insight を実行する処理
 - researcher / user / gatekeeper / product の persona 切替
 - `kano.json` と `requirements_packet.json` の artifact 契約
@@ -126,6 +130,7 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
 | FR-K05 | 複数 evidence を要求候補クラスタへまとめられること | cluster ID と evidence refs が保存される |
 | FR-K06 | persona mode は researcher, user, gatekeeper, product を扱えること | `kano.json.persona_modes` と persona votes で確認できる |
 | FR-K07 | Kano type は must_be, performance, attractive, indifferent, reverse, questionable を扱えること | schema / test / sample artifact で確認できる |
+| FR-K18 | `performance` は一元的品質そのものの実測ではなく、比較・改善幅・悪化時不満などのネット証跡から疑似再現した仮分類として扱うこと | requirements / specification / README に明記されている |
 | FR-K08 | `requirements_packet.json` は requirement, KPI, acceptance, risk, downstream hook を含むこと | sample artifact と schema test で確認できる |
 | FR-K09 | must_be は hard gate、performance は threshold gate、attractive は soft / experiment gate に写像できること | packet-to-gate 変換 test で確認できる |
 | FR-K10 | confidence, bias_note, kill_condition が欠ける候補は packet 昇格しないこと | validation test で確認できる |

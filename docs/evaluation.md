@@ -19,6 +19,8 @@
 | AC-09 | failure source 分離 | `dependency_health.report` があり、`report_save_failed` と `state_write_failed` を区別できる |
 | AC-10 | 観測点契約 | 最小観測点を後から集計できる field / log の定義が README / specification / evaluation にある |
 | AC-11 | 標準チェーン | README / specification が `research -> insight -> gate -> sync -> notify` を正規経路として扱う |
+| AC-12 | macOS / Linux 入口 | `run-research-once.sh`, `run-research-schedule.sh`, `research-runtime/scripts/*.sh` が存在し、runtime が PowerShell 非依存で起動できる |
+| AC-13 | API / subagent fallback | Insight / Gate が外部 API を優先し、API 失敗時にサブエージェント fallback を試す unit test が通る |
 
 ### 2.1 KanoMode Acceptance Criteria
 
@@ -35,6 +37,8 @@ KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mod
 | AC-K07 | audit artifact | `requirements_audit_packet.json` の root と requirement item の必須 field が仕様化されている |
 | AC-K08 | requirement gate | Requirement Definition Gate が `go`, `conditional_go`, `no_go` の判定基準を持つ |
 | AC-K09 | downstream audit hooks | manual-bb-test-harness と code-to-gate の役割分担が仕様化されている |
+| AC-K10 | KanoMode の位置づけ | 狩野モデルそのものではなく、ネット証跡から品質分類を仮説化するモードだと README / requirements / specification に明記されている |
+| AC-K11 | 一元的品質の疑似再現 | `performance` がネット上の比較・改善要求・悪化時不満から疑似再現する仮分類だと説明されている |
 
 ## 3. 検証コマンド
 
@@ -44,6 +48,14 @@ python -m unittest discover tests
 python -m rand_research.cli heartbeat --dry-run --max-items 2
 python -m rand_research.cli env-check
 python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
+```
+
+macOS / Linux runtime 入口:
+
+```bash
+cd research-runtime
+./scripts/env-check.sh
+./scripts/run-once.sh paper_arxiv_ai_recent 2
 ```
 
 installer の解決確認:

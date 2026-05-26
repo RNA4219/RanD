@@ -88,6 +88,15 @@ flowchart LR
 - `python -m rand_research.cli heartbeat [--preset <name>] [--dry-run] [--summary-only]`
 - `python -m rand_research.cli env-check`
 
+macOS / Linux では次の shell 入口も提供する。
+
+- `./run-research-once.sh [preset]`
+- `./run-research-schedule.sh`
+- `./research-runtime/scripts/env-check.sh`
+- `./install-r-and-d-agent.sh`
+
+`install-r-and-d-agent.sh` は既存 PowerShell installer を `pwsh` 経由で呼ぶ薄い wrapper とし、install 実体の重複を避ける。
+
 ### 4.2 preset
 
 | preset | 種別 | 説明 |
@@ -201,6 +210,26 @@ KanoMode preset では、固定 artifact に加えて次を保存する。
 
 ## 6. 外部 repo 契約
 
+### 6.0 Insight / Gate 実行順序
+
+Insight / Gate は次の順で実行する。
+
+1. 外部 API
+   - Insight: `RAND_INSIGHT_API_URL`
+   - Gate: `RAND_GATE_API_URL`
+   - 任意 token: `RAND_INSIGHT_API_TOKEN`, `RAND_GATE_API_TOKEN`
+2. サブエージェント fallback
+   - Insight: `RAND_INSIGHT_SUBAGENT_CMD`
+   - Gate: `RAND_GATE_SUBAGENT_CMD`
+   - API 失敗または peer repo import 失敗時に、同一 request payload を stdin JSON で渡す
+3. peer repo の Python API
+   - `insight_core.run(request_dict=...)`
+   - `experiment_gate.run_gate(request=...)`
+4. deterministic fallback
+   - repo / API / subagent が使えない場合でも artifact 契約を満たし、`status=degraded` として保存する
+
+API / サブエージェントの実行結果は `results` 配列を返すことを期待する。`status` が root に無い場合は、各 result の `status` または `run.status` から集約する。timeout は `RAND_INTEGRATION_TIMEOUT_SECONDS` で上書きでき、未指定時は 30 秒以上を保証する。
+
 ### 6.1 agent-taskstate
 
 RanD は local snapshot を読み書きする。必要最小キー:
@@ -258,6 +287,7 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 
 - unit test の正本は fixture ベースの fetcher テストとする
 - live fetch や live LLM 実行は受け入れ基準の必須にはしない
+- 外部 API / サブエージェント fallback は mock による unit test を正本にし、live API は受け入れ必須にしない
 - KanoMode の通常検証は `kano_requirements_offline_eval` と `tests/fixtures/kano_evidence.json` を正本にする
 - 最低限の回帰対象
   - arXiv HTML

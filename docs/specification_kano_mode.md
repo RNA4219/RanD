@@ -20,7 +20,9 @@ workflow_reference:
 
 本仕様書は、RanD の `research-runtime` に追加する KanoMode のふるまい、入出力、artifact 契約、既存チェーンとの接続、検証観点を定義する。
 
-KanoMode は、検索証拠や fixture evidence をもとに Kano 分類を行い、実務で使える `requirements_packet.json` を生成する要求定義支援モードである。加えて、既存の要件定義を再評価して `requirements_audit_packet.json` を生成する要件監査モードも扱う。新規 OSS ではなく、RanD の既存 runtime / preset / artifact layer に追加する軽量アダプタとして扱う。
+KanoMode は、狩野モデルそのものではない。正式な狩野モデル調査を代替せず、検索証拠や fixture evidence をもとに Kano 参照の仮分類を行い、実務で使える `requirements_packet.json` を生成する要求定義支援モードである。加えて、既存の要件定義を再評価して `requirements_audit_packet.json` を生成する要件監査モードも扱う。新規 OSS ではなく、RanD の既存 runtime / preset / artifact layer に追加する軽量アダプタとして扱う。
+
+特に一元的品質は、ネット上の比較、改善要求、不満、称賛、乗り換え理由から疑似的に再現する。つまり `performance` は「実測済みの一元的品質」ではなく、「良くなるほど満足が上がり、悪くなるほど不満が増える可能性が高い」という evidence-backed hypothesis である。
 
 ## 2. 適用範囲
 
@@ -111,13 +113,13 @@ offline eval は live web search と live LLM 実行に依存しない。これ�
 
 ### 5.3 query family
 
-query family は Kano 信号を拾うための検索意図である。
+query family は Kano 参照の品質信号を拾うための検索意図である。狩野モデルの質問票を実施する代わりに、ネット上で自然発生している反応を evidence として集める。
 
 | family | 目的 | 主な Kano 信号 |
 | --- | --- | --- |
 | `complaints` | 不満、離脱、詰まりを拾う | `must_be`, `reverse` |
 | `praise` | 称賛、便利さ、驚きを拾う | `attractive`, `performance` |
-| `compare` | 競合比較、乗り換え理由を拾う | `performance` |
+| `compare` | 競合比較、乗り換え理由を拾い、一元的品質を疑似再現する | `performance` |
 | `expectation` | 当たり前、最低限、must have を拾う | `must_be` |
 | `delight` | あるとうれしい、意外に良いを拾う | `attractive` |
 | `churn` | 解約、利用停止、後悔を拾う | `must_be`, `reverse` |
@@ -169,12 +171,12 @@ persona votes は `kano.json.kano_candidates[*].persona_votes` に保存する�
 
 ### 5.7 Kano type
 
-Kano type は次を扱う。
+Kano type は狩野モデルの分類語彙を借りた仮分類であり、正式調査の結果ではない。各 type は downstream gate のための作業仮説として扱う。
 
 | type | 意味 | gate policy |
 | --- | --- | --- |
 | `must_be` | 無いと強い不満が出る最低条件 | `hard_gate` |
-| `performance` | 良くなるほど満足が上がる競争軸 | `threshold_gate` |
+| `performance` | ネット上の比較・改善要求・悪化時不満から疑似再現した一元的品質の競争軸 | `threshold_gate` |
 | `attractive` | あるとうれしい差別化要素 | `soft_experiment_gate` |
 | `indifferent` | 要求化の優先度が低い | `observe_only` |
 | `reverse` | あると不満が出る可能性がある | `negative_gate` |
@@ -335,7 +337,7 @@ Requirement Definition Gate は、既存要件定義を「書いてあるから�
 
 | 軸 | 見ること | 主担当 |
 | --- | --- | --- |
-| 価値妥当性 | must-be / performance / attractive / reverse の分類が妥当か | RanD KanoMode |
+| 価値妥当性 | must-be / performance / attractive / reverse の仮分類が妥当か | RanD KanoMode |
 | ユーザー期待整合 | 外部証跡や競合 baseline とズレていないか | RanD KanoMode |
 | 検収可能性 | 受入条件が観測可能か。手動 BB で確認できるか | manual-bb-test-harness |
 | 実装整合性 | 実装・構造・テストが要件を支えているか | code-to-gate |
