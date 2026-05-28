@@ -564,9 +564,23 @@ class GoldenFixtureTests(unittest.TestCase):
         if expected["promoted_requirements"]:
             promoted_req = packet["requirements"][0]
             expected_req = expected["promoted_requirements"][0]
+            self.assertEqual(promoted_req["requirement_id"], expected_req["requirement_id"])
+            self.assertIn(expected_req["candidate_id"], promoted_req["evidence_refs"])
             self.assertEqual(promoted_req["kano_type"], expected_req["kano_type"])
             self.assertEqual(promoted_req["priority"], expected_req["priority"])
             self.assertEqual(promoted_req["gate_policy"], expected_req["gate_policy"])
+            self.assertEqual(promoted_req["confidence"], expected_req["confidence"])
+            self.assertEqual(promoted_req["statement"], expected_req["statement"])
+            self.assertEqual(len(promoted_req["evidence_refs"]), expected_req["evidence_refs_count"])
+
+        candidates = {candidate["source_candidate_id"]: candidate for candidate in artifacts["kano"]["kano_candidates"]}
+        for expected_candidate in expected["not_promoted_candidates"]:
+            candidate = candidates[expected_candidate["source_candidate_id"]]
+            self.assertEqual(candidate["candidate_id"], expected_candidate["candidate_id"])
+            self.assertEqual(candidate["kano_type"], expected_candidate["kano_type"])
+            self.assertEqual(candidate["confidence"], expected_candidate["confidence"])
+            self.assertFalse(candidate["promotion_gate"]["promotable"])
+            self.assertIn(expected_candidate["rejection_reason"], candidate["promotion_gate"]["rejection_reasons"])
 
     def test_audit_matches_expected_summary_golden(self) -> None:
         fixture_path = Path(__file__).parent / "fixtures" / "audit_evidence.json"
@@ -585,4 +599,8 @@ class GoldenFixtureTests(unittest.TestCase):
         self.assertEqual(gate_summary["conditional_go"], expected["verdict_distribution"]["conditional_go"])
         self.assertEqual(gate_summary["no_go"], expected["verdict_distribution"]["no_go"])
         self.assertEqual(gate_summary["overall_assessment"], expected["overall_assessment"])
+        self.assertEqual(gate_summary["overall_reason"], expected["overall_reason"])
         self.assertEqual(gate_summary["total"], expected["total_requirements"])
+        self.assertEqual(gate_summary["verdict_distribution"]["go"], expected["go_requirement_ids"])
+        self.assertEqual(gate_summary["verdict_distribution"]["conditional_go"], expected["conditional_go_requirement_ids"])
+        self.assertEqual(gate_summary["verdict_distribution"]["no_go"], expected["no_go_requirement_ids"])

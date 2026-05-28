@@ -17,7 +17,8 @@ IMPLEMENTATION_ALIGNMENT_LEVELS = {"high", "medium", "low", "unknown"}
 
 def build_kano_artifacts(items: list[NormalizedItem], preset: dict[str, Any], run_id: str) -> dict[str, dict[str, Any]]:
     candidates = _build_candidates(items, preset, run_id)
-    requirements = [_candidate_to_requirement(candidate, index) for index, candidate in enumerate(candidates, start=1) if _promotable(candidate)]
+    promoted_candidates = [candidate for candidate in candidates if candidate["promotion_gate"]["promotable"]]
+    requirements = [_candidate_to_requirement(candidate, index) for index, candidate in enumerate(promoted_candidates, start=1)]
     packet = {
         "schema_version": SCHEMA_VERSION,
         "packet_id": f"rp-{run_id}",
@@ -76,29 +77,46 @@ def _build_candidates(items: list[NormalizedItem], preset: dict[str, Any], run_i
         grouped.setdefault(candidate_id, []).append(item)
 
     candidates: list[dict[str, Any]] = []
-    for index, (candidate_key, group) in enumerate(sorted(grouped.items()), start=1):
+    for candidate_key, group in sorted(grouped.items()):
         first = group[0]
-        candidate_id = f"KC-{index:03d}"
         kano_type = _select_kano_type(group)
         confidence = round(sum(float(item.metadata.get("confidence", 0.6)) for item in group) / len(group), 2)
         evidence = [_evidence_entry(item, evidence_index) for evidence_index, item in enumerate(group, start=1)]
         statement = first.metadata.get("requirement_statement") or first.title
+        promotion_gate = _promotion_gate(candidate := {
+            "candidate_id": "",
+            "source_candidate_id": candidate_key,
+            "statement": statement,
+            "kano_type": kano_type,
+            "confidence": confidence,
+            "evidence": evidence,
+            "persona_votes": _persona_votes(kano_type, preset.get("persona_modes", [])),
+            "bias_note": first.metadata.get("bias_note", ""),
+            "kill_condition": first.metadata.get("kill_condition", ""),
+            "open_questions": first.metadata.get("open_questions", []),
+            "derived_from_run": run_id,
+        })
+        candidate["promotion_gate"] = promotion_gate
         candidates.append(
-            {
-                "candidate_id": candidate_id,
-                "source_candidate_id": candidate_key,
-                "statement": statement,
-                "kano_type": kano_type,
-                "confidence": confidence,
-                "evidence": evidence,
-                "persona_votes": _persona_votes(kano_type, preset.get("persona_modes", [])),
-                "bias_note": first.metadata.get("bias_note", ""),
-                "kill_condition": first.metadata.get("kill_condition", ""),
-                "open_questions": first.metadata.get("open_questions", []),
-                "derived_from_run": run_id,
-            }
+            candidate
         )
+    candidates.sort(key=_candidate_sort_key)
+    for index, candidate in enumerate(candidates, start=1):
+        candidate["candidate_id"] = f"KC-{index:03d}"
     return candidates
+
+
+def _candidate_sort_key(candidate: dict[str, Any]) -> tuple[int, int, str]:
+    priority_rank = {
+        "must_be": 0,
+        "performance": 1,
+        "reverse": 2,
+        "attractive": 3,
+        "indifferent": 4,
+        "questionable": 5,
+    }
+    promotion_rank = 0 if candidate["promotion_gate"]["promotable"] else 1
+    return (promotion_rank, priority_rank.get(candidate.get("kano_type", ""), 9), candidate.get("source_candidate_id", ""))
 
 
 def _candidate_to_requirement(candidate: dict[str, Any], index: int) -> dict[str, Any]:
@@ -154,31 +172,31 @@ def _persona_votes(kano_type: str, persona_modes: list[str]) -> dict[str, str]:
 
 
 def _promotable(candidate: dict[str, Any]) -> bool:
-    """Check if a candidate meets the promotion gate criteria.
+    return _promotion_gate(candidate)["promotable"]
 
-    Promotion requires:
-    - confidence >= 0.7
-    - bias_note non-empty
-    - kill_condition non-empty
-    - evidence >= 1 entry
-    - evidence contains at least one primary or user_signal tier
-    - kano_type is not questionable
-    """
+
+def _promotion_gate(candidate: dict[str, Any]) -> dict[str, Any]:
+    """Return promotion decision and rejection reasons for auditability."""
+    reasons: list[str] = []
     if not candidate.get("bias_note") or not candidate.get("kill_condition"):
-        return False
+        reasons.append("missing safety field")
     confidence = candidate.get("confidence", 0)
     if confidence < 0.7:
-        return False
+        reasons.append("confidence below 0.7 threshold")
     kano_type = candidate.get("kano_type", "")
     if kano_type == "questionable":
-        return False
+        reasons.append("questionable kano type")
     evidence = candidate.get("evidence", [])
     if not evidence:
-        return False
+        reasons.append("missing evidence")
     primary_or_signal_count = sum(1 for ev in evidence if ev.get("source_tier") in ("primary", "user_signal"))
     if primary_or_signal_count < 1:
-        return False
-    return True
+        reasons.append("missing primary or user_signal evidence")
+    return {
+        "promotable": not reasons,
+        "rejection_reasons": reasons,
+        "primary_or_user_signal_count": primary_or_signal_count,
+    }
 
 
 def _count_by_tier(items: list[NormalizedItem], tier: str) -> int:
@@ -255,7 +273,11 @@ def build_audit_artifacts(
     audit_packet = {
         "schema_version": SCHEMA_VERSION,
         "document_id": document_id or preset.get("audit_document_id", f"AUDIT-{run_id}"),
-        "summary": _audit_summary(items, audit_requirements, gate_summary),
+        "summary": (
+            f"{len(audit_requirements)}要件監査。"
+            f"go={gate_summary['go']}, conditional_go={gate_summary['conditional_go']}, no_go={gate_summary['no_go']}."
+            f"{gate_summary['overall_reason']}"
+        ),
         "requirements": audit_requirements,
         "gate_summary": gate_summary,
         "source_refs": {
@@ -352,7 +374,14 @@ def _build_audit_requirements(
                 "implementation_alignment": implementation_alignment if implementation_alignment in IMPLEMENTATION_ALIGNMENT_LEVELS else "unknown",
                 "risks": first.metadata.get("risks", _risks_for(kano_estimate)),
                 "issues": first.metadata.get("issues", []),
-                "suggested_action": first.metadata.get("suggested_action", _suggested_action_for(gate_verdict)),
+                "suggested_action": first.metadata.get(
+                    "suggested_action",
+                    {
+                        "go": "維持。既存テストでcoverage確認。",
+                        "conditional_go": "補強。受入条件、KPI、根拠、実装リスクの確認。",
+                        "no_go": "再設計。要件文改訂または削除候補。",
+                    }.get(gate_verdict, "確認"),
+                ),
                 "gate_verdict": gate_verdict,
             }
         )
@@ -393,14 +422,6 @@ def _determine_gate_verdict(
     return "go"
 
 
-def _suggested_action_for(gate_verdict: str) -> str:
-    return {
-        "go": "維持。既存テストでcoverage確認。",
-        "conditional_go": "補強。受入条件、KPI、根拠、実装リスクの確認。",
-        "no_go": "再設計。要件文改訂または削除候補。",
-    }.get(gate_verdict, "確認")
-
-
 def _build_gate_summary(requirements: list[dict[str, Any]]) -> dict[str, Any]:
     verdict_counts = Counter(req["gate_verdict"] for req in requirements)
     verdict_distribution: dict[str, list[str]] = {}
@@ -428,15 +449,3 @@ def _build_gate_summary(requirements: list[dict[str, Any]]) -> dict[str, Any]:
         "overall_assessment": overall,
         "overall_reason": overall_reason,
     }
-
-
-def _audit_summary(
-    items: list[NormalizedItem],
-    requirements: list[dict[str, Any]],
-    gate_summary: dict[str, Any],
-) -> str:
-    return (
-        f"{len(requirements)}要件監査。"
-        f"go={gate_summary['go']}, conditional_go={gate_summary['conditional_go']}, no_go={gate_summary['no_go']}."
-        f"{gate_summary['overall_reason']}"
-    )

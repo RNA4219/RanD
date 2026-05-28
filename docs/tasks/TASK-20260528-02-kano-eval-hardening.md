@@ -118,7 +118,7 @@ KanoMode の offline eval / audit eval を、単なる artifact 生成 smoke か
 - attractive 候補が `P2` / `soft_experiment_gate` として残り、hard gate にならない。
 - golden fixture によって discovery / audit の期待値が regression test される。
 - CLI black-box eval で `status=ok` と gate verdict が別々に確認される。
-- Code-to-gate 再実行で High/Critical effective finding が 0、または Acceptance に根拠付き follow-up が記録される。
+- Code-to-gate 再実行で Critical / High / Medium / Low effective finding が 0 になる。
 - `docs/acceptance/AC-20260528-02.md` に検証コマンドと結果が記録される。
 
 ## Local Commands
@@ -169,3 +169,4 @@ node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Co
 - 現状の KanoMode Eval は smoke / contract eval としては有効だが、社内導入判断の gate としては不足している。
 - 本 Task の完了条件は「KanoMode が常に Go になる」ことではなく、「危険な要求昇格や No-Go 条件を Eval が止められる」ことである。
 - `status=ok` は runtime 実行成功を意味し、`overall_assessment=go` を意味しない。この分離を docs / acceptance の正本にする。
+- 2026-05-28 検収では `uv run pytest` 58 passed、discovery run_id `20260528-141817-a36d15a4`、audit run_id `20260528-141925-a05fc0f1`、Code-to-gate run_id `ctg-202605281422` により fixture-based KanoMode Eval release gate を Go とした。

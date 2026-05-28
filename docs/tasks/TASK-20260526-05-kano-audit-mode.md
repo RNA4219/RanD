@@ -2,9 +2,11 @@
 task_id: TASK-20260526-05
 intent_id: INT-KANO-001
 owner: rand
-status: active
-last_reviewed_at: 2026-05-26
-next_review_due: 2026-06-09
+status: superseded
+last_reviewed_at: 2026-05-28
+next_review_due: null
+superseded_by: TASK-20260528-02
+completion_evidence: docs/acceptance/AC-20260528-02.md
 ---
 
 # Task Seed: KanoMode Audit Mode

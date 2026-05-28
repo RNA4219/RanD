@@ -84,18 +84,18 @@ node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Co
 
 ## 4. 手動確認項目
 
-- [ ] ルート README 先頭に Quickstart がある
-- [ ] README に heartbeat / preset 選択規則の表がある
-- [ ] README に `status=ok|degraded|failed` と 8 artifact 契約がある
-- [ ] README と specification に `research -> insight -> gate -> sync -> notify` の標準チェーンがある
-- [ ] README と specification に `agent-taskstate` / `memx-resolver` / `tracker-bridge-materials` の責務境界がある
-- [ ] installer README に `CODEX_DEV_ROOT` と override JSON の説明がある
-- [ ] runtime README に単体依存と workspace 依存の説明がある
-- [ ] specification に schema compatibility policy と最小観測点がある
-- [ ] KanoMode の offline eval で `kano.json` と `requirements_packet.json` が保存される
-- [ ] KanoMode audit eval で `requirements_audit_packet.json` が保存され、`status=ok` と `overall_assessment` を別々に確認できる
-- [ ] KanoMode Eval の golden fixture が discovery / audit の期待値を検証している
-- [ ] Code-to-gate report の High/Critical finding が 0、または follow-up が記録されている
+- [x] ルート README 先頭に Quickstart がある
+- [x] README に heartbeat / preset 選択規則の表がある
+- [x] README に `status=ok|degraded|failed` と 8 artifact 契約がある
+- [x] README と specification に `research -> insight -> gate -> sync -> notify` の標準チェーンがある
+- [x] README と specification に `agent-taskstate` / `memx-resolver` / `tracker-bridge-materials` の責務境界がある
+- [x] installer README に `CODEX_DEV_ROOT` と override JSON の説明がある
+- [x] runtime README に単体依存と workspace 依存の説明がある
+- [x] specification に schema compatibility policy と最小観測点がある
+- [x] KanoMode の offline eval で `kano.json` と `requirements_packet.json` が保存される
+- [x] KanoMode audit eval で `requirements_audit_packet.json` が保存され、`status=ok` と `overall_assessment` を別々に確認できる
+- [x] KanoMode Eval の golden fixture が discovery / audit の期待値を検証している
+- [x] Code-to-gate report の High/Critical finding が 0、または follow-up が記録されている
 
 ## 5. 残留リスク
 
