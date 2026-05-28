@@ -127,6 +127,7 @@ KanoMode の詳細な要件・仕様・検収記録は次を正本にします�
 - [KanoMode 要件定義](docs/requirements_kano_mode.md)
 - [KanoMode 仕様書](docs/specification_kano_mode.md)
 - [KanoMode 引継ぎ資料](docs/kano_mode_handoff.md)
+- [KanoMode Eval hardening 検収](docs/acceptance/BB-20260528-02-kano-eval-hardening.md)
 
 ## 標準チェーンと責務境界
 
@@ -277,19 +278,30 @@ export RAND_INSIGHT_SUBAGENT_CMD="your-insight-agent-command"
 export RAND_GATE_SUBAGENT_CMD="your-gate-agent-command"
 ```
 
-## KanoMode MVP 検証状況
+## KanoMode Eval 検証状況
 
-2026-05-26 時点で、Discovery mode と Audit mode は実装済みです。
+2026-05-29 JST 時点で、KanoMode の fixture-based release gate は Go です。これは live web search や LLM provider の分類品質を本番保証するものではなく、固定 fixture / golden / black-box CLI / Code-to-gate による再現性検収を指します。
 
 検証済み:
 
-- `uv run python -m unittest discover tests`
-  - `35 tests OK`
+- `uv run pytest`
+  - `64 passed`
 - `uv run python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5`
+  - run_id `20260528-150341-856a486c`
   - `status: ok`
   - `kano.json` と `requirements_packet.json` を生成
+  - promoted `REQ-001` / `KC-001`
+  - low-confidence attractive `KC-002` は `confidence below 0.7 threshold` で昇格拒否
 - `uv run python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5`
+  - run_id `20260528-150341-cf9c8e40`
   - `status: ok`
-  - `kano.json` と `requirements_audit_packet.json` を生成
+  - `requirements_audit_packet.json` を生成
+  - `overall_assessment: no_go`
+  - verdict distribution: `go=1`, `conditional_go=1`, `no_go=1`
+- `code-to-gate analyze`
+  - run_id `ctg-202605281503`
+  - Critical 0 / High 0 / Medium 0 / Low 0 / Suppressed 0
 
-state 保存は atomic write に対応済みです。破損した state ファイルによる `state_write_failed` が再発した場合は、[RUNBOOK.md](RUNBOOK.md) と [KanoMode 引継ぎ資料](docs/kano_mode_handoff.md) の検証記録を確認してください。
+KanoMode Eval の合格条件は「すべてを Go と判定すること」ではありません。実行成功の `status=ok` と、要件監査の `overall_assessment` を分離し、No-Go 条件を No-Go として止められることを正とします。
+
+state 保存は atomic write と file lock に対応済みです。2026-05-28 に発生した並列 CLI 実行時の `state_write_failed` は [TASK-20260528-03](docs/tasks/TASK-20260528-03-parallel-state-write-hardening.md) で hardening 済みです。

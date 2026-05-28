@@ -214,9 +214,23 @@ macOS / Linux では同じ確認を shell wrapper でも実行できます。
 
 Windows 環境で `python` が Windows Store stub に当たる場合は、`uv run python` に置き換えて実行します。
 
-2026-05-26 時点の KanoMode MVP 検証結果:
+2026-05-29 JST 時点の KanoMode Eval 検証結果:
 
-- unittest: 35 tests OK
-- discovery offline eval: `status: ok`
-- audit offline eval: `status: ok`
-- artifact generation: `kano.json`, `requirements_packet.json`, `requirements_audit_packet.json`
+- pytest: `64 passed`
+- discovery offline eval:
+  - run_id `20260528-150341-856a486c`
+  - `status: ok`
+  - `kano.json` と `requirements_packet.json` を生成
+  - promoted `REQ-001` / `KC-001`
+  - low-confidence attractive `KC-002` は `confidence below 0.7 threshold` で昇格拒否
+- audit eval:
+  - run_id `20260528-150341-cf9c8e40`
+  - `status: ok`
+  - `requirements_audit_packet.json` を生成
+  - `overall_assessment: no_go`
+  - verdict distribution: `go=1`, `conditional_go=1`, `no_go=1`
+- Code-to-gate:
+  - run_id `ctg-202605281503`
+  - Critical 0 / High 0 / Medium 0 / Low 0 / Suppressed 0
+
+KanoMode Eval の release gate は fixture-based Go です。live web search と LLM provider の分類品質は別途 pilot / shadow eval の対象であり、この通常検収の必須条件にはしません。
