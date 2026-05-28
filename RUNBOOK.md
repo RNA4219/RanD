@@ -88,15 +88,14 @@ node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Co
 - Acceptance: [docs/acceptance/AC-20260528-02.md](docs/acceptance/AC-20260528-02.md)
 - **[2026-05-28 完了]** TASK-20260528-02 実装完了。overall verdict 修正、promotion gate 強化、golden fixture 追加。
 
-## 5.3 Parallel state write failure 記録
+## 5.3 Parallel state write hardening
 
 2026-05-28 14:18:17 UTC に `task-20260528-141817-44b2dc68` (kano_requirements_audit) で `state_write_failed` が発生した。
 
 - 原因: CLI 並列実行（offline_eval / audit 同時起動）による state file 書き込み競合
-- 状態: `taskstate.json` に `status: failed`, `status_reason: ["state_write_failed"]` が記録されている
+- **[2026-05-28 完了]** FileLock クラスを io_utils.py に追加し、save_taskstate / upsert_task_record で file lock を使用するようにした。
 - 再検収: 14:19:25 UTC の単独 audit run `task-20260528-141925-a05fc0f1` で `status: done`, `overall_assessment: no_go` を確認済み
-- 影響: 並列実行時の transient failure であり、単独実行で再検収完了しているため blocker ではない
-- Follow-up: [docs/tasks/TASK-20260528-03-parallel-state-write-hardening.md](docs/tasks/TASK-20260528-03-parallel-state-write-hardening.md)
+- Task Seed: [docs/tasks/TASK-20260528-03-parallel-state-write-hardening.md](docs/tasks/TASK-20260528-03-parallel-state-write-hardening.md) - **done**
 
 実装着手時は、まず `TASK-20260528-02` の P0 を扱う。
 

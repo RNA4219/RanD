@@ -1,11 +1,12 @@
 ---
 task_id: TASK-20260528-03
 intent_id: INT-STATE-001
-status: planned
+status: done
 source: RUNBOOK.md#5.3
 owner: rand
 last_reviewed_at: 2026-05-28
 next_review_due: 2026-06-04
+completion_evidence: research-runtime/tests/test_io_utils.py::FileLockTests
 ---
 
 # Parallel state write hardening
