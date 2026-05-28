@@ -154,7 +154,31 @@ def _persona_votes(kano_type: str, persona_modes: list[str]) -> dict[str, str]:
 
 
 def _promotable(candidate: dict[str, Any]) -> bool:
-    return bool(candidate.get("confidence")) and bool(candidate.get("bias_note")) and bool(candidate.get("kill_condition"))
+    """Check if a candidate meets the promotion gate criteria.
+
+    Promotion requires:
+    - confidence >= 0.7
+    - bias_note non-empty
+    - kill_condition non-empty
+    - evidence >= 1 entry
+    - evidence contains at least one primary or user_signal tier
+    - kano_type is not questionable
+    """
+    if not candidate.get("bias_note") or not candidate.get("kill_condition"):
+        return False
+    confidence = candidate.get("confidence", 0)
+    if confidence < 0.7:
+        return False
+    kano_type = candidate.get("kano_type", "")
+    if kano_type == "questionable":
+        return False
+    evidence = candidate.get("evidence", [])
+    if not evidence:
+        return False
+    primary_or_signal_count = sum(1 for ev in evidence if ev.get("source_tier") in ("primary", "user_signal"))
+    if primary_or_signal_count < 1:
+        return False
+    return True
 
 
 def _count_by_tier(items: list[NormalizedItem], tier: str) -> int:
@@ -388,7 +412,7 @@ def _build_gate_summary(requirements: list[dict[str, Any]]) -> dict[str, Any]:
     no_go_count = verdict_counts.get("no_go", 0)
     conditional_count = verdict_counts.get("conditional_go", 0)
 
-    overall = "conditional_go" if no_go_count > 0 or conditional_count > go_count else "go" if no_go_count == 0 else "no_go"
+    overall = "no_go" if no_go_count > 0 else "conditional_go" if conditional_count > 0 else "go"
     overall_reason = (
         f"{no_go_count}件no_goあり。要件改訂後に再監査推奨。" if no_go_count > 0
         else f"{conditional_count}件conditional_goあり。補強後に再監査推奨。" if conditional_count > 0

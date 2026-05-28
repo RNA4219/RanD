@@ -1,0 +1,28 @@
+{
+  "expected_packet": {
+    "schema_version": "1.0.0",
+    "promoted_requirements_count": 1,
+    "promoted_requirements": [
+      {
+        "requirement_id": "REQ-001",
+        "candidate_id": "KC-001",
+        "kano_type": "must_be",
+        "priority": "P0",
+        "gate_policy": "hard_gate",
+        "confidence": 0.83,
+        "statement": "KanoMode は証拠不足や検索失敗を明示し、要求パケットを過信させてはならない。",
+        "evidence_refs_count": 3,
+        "has_primary_or_user_signal": true
+      }
+    ],
+    "not_promoted_candidates": [
+      {
+        "candidate_id": "KC-002",
+        "source_candidate_id": "kpi-draft-attractive",
+        "kano_type": "attractive",
+        "confidence": 0.67,
+        "rejection_reason": "confidence below 0.7 threshold"
+      }
+    ]
+  }
+}

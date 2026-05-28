@@ -1,6 +1,8 @@
+import json
 import unittest
+from pathlib import Path
 
-from rand_research.kano import build_audit_artifacts, build_kano_artifacts
+from rand_research.kano import build_audit_artifacts, build_kano_artifacts, _promotable
 from rand_research.models import NormalizedItem, SCHEMA_VERSION
 
 
@@ -277,3 +279,310 @@ class AuditTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PromotionGateTests(unittest.TestCase):
+    def test_promotable_rejects_low_confidence_candidate(self) -> None:
+        candidate = {
+            "candidate_id": "KC-LOW",
+            "confidence": 0.65,
+            "bias_note": "bias present",
+            "kill_condition": "kill condition",
+            "kano_type": "must_be",
+            "evidence": [{"source_tier": "primary", "evidence_id": "EV-001"}],
+        }
+        self.assertFalse(_promotable(candidate))
+
+    def test_promotable_rejects_questionable_candidate(self) -> None:
+        candidate = {
+            "candidate_id": "KC-QUEST",
+            "confidence": 0.85,
+            "bias_note": "bias present",
+            "kill_condition": "kill condition",
+            "kano_type": "questionable",
+            "evidence": [{"source_tier": "primary", "evidence_id": "EV-001"}],
+        }
+        self.assertFalse(_promotable(candidate))
+
+    def test_promotable_rejects_unknown_tier_only_candidate(self) -> None:
+        candidate = {
+            "candidate_id": "KC-UNK",
+            "confidence": 0.85,
+            "bias_note": "bias present",
+            "kill_condition": "kill condition",
+            "kano_type": "must_be",
+            "evidence": [{"source_tier": "unknown", "evidence_id": "EV-001"}],
+        }
+        self.assertFalse(_promotable(candidate))
+
+    def test_promotable_accepts_primary_tier_candidate(self) -> None:
+        candidate = {
+            "candidate_id": "KC-PRIM",
+            "confidence": 0.85,
+            "bias_note": "bias present",
+            "kill_condition": "kill condition",
+            "kano_type": "must_be",
+            "evidence": [{"source_tier": "primary", "evidence_id": "EV-001"}],
+        }
+        self.assertTrue(_promotable(candidate))
+
+    def test_promotable_accepts_user_signal_tier_candidate(self) -> None:
+        candidate = {
+            "candidate_id": "KC-SIG",
+            "confidence": 0.75,
+            "bias_note": "bias present",
+            "kill_condition": "kill condition",
+            "kano_type": "performance",
+            "evidence": [{"source_tier": "user_signal", "evidence_id": "EV-001"}],
+        }
+        self.assertTrue(_promotable(candidate))
+
+    def test_promotable_rejects_missing_bias_note(self) -> None:
+        candidate = {
+            "candidate_id": "KC-NOBIAS",
+            "confidence": 0.85,
+            "bias_note": "",
+            "kill_condition": "kill condition",
+            "kano_type": "must_be",
+            "evidence": [{"source_tier": "primary", "evidence_id": "EV-001"}],
+        }
+        self.assertFalse(_promotable(candidate))
+
+    def test_promotable_rejects_missing_kill_condition(self) -> None:
+        candidate = {
+            "candidate_id": "KC-NOKILL",
+            "confidence": 0.85,
+            "bias_note": "bias present",
+            "kill_condition": "",
+            "kano_type": "must_be",
+            "evidence": [{"source_tier": "primary", "evidence_id": "EV-001"}],
+        }
+        self.assertFalse(_promotable(candidate))
+
+    def test_promotable_rejects_no_evidence(self) -> None:
+        candidate = {
+            "candidate_id": "KC-NOEV",
+            "confidence": 0.85,
+            "bias_note": "bias present",
+            "kill_condition": "kill condition",
+            "kano_type": "must_be",
+            "evidence": [],
+        }
+        self.assertFalse(_promotable(candidate))
+
+
+class AttractiveGatePolicyTests(unittest.TestCase):
+    def test_attractive_candidate_remains_soft_experiment_gate(self) -> None:
+        items = [
+            NormalizedItem(
+                id="ev-attractive",
+                kind="kano_evidence",
+                source_name="fixture",
+                url="fixture://attractive",
+                title="Attractive feature",
+                summary="An attractive feature that is not blocking.",
+                metadata={
+                    "kano_candidate_id": "attractive-test",
+                    "kano_type": "attractive",
+                    "source_type": "praise",
+                    "source_tier": "user_signal",
+                    "locale": "ja-JP",
+                    "confidence": 0.85,
+                    "bias_note": "praise can be biased",
+                    "kill_condition": "low adoption means optional",
+                    "requirement_statement": "Attractive feature stays soft.",
+                },
+            )
+        ]
+        artifacts = build_kano_artifacts(items, {"name": "kano_requirements_offline_eval"}, "run-1")
+        requirement = artifacts["requirements_packet"]["requirements"][0]
+        self.assertEqual(requirement["kano_type"], "attractive")
+        self.assertEqual(requirement["priority"], "P2")
+        self.assertEqual(requirement["gate_policy"], "soft_experiment_gate")
+
+
+class GateSummaryTests(unittest.TestCase):
+    def test_gate_summary_no_go_overrides_conditional(self) -> None:
+        items = [
+            NormalizedItem(
+                id="audit-go",
+                kind="audit_evidence",
+                source_name="fixture",
+                url="fixture://audit/go",
+                title="Go requirement",
+                summary="High alignment.",
+                metadata={
+                    "requirement_id": "REQ-GO",
+                    "original_text": "Go requirement.",
+                    "kano_type": "must_be",
+                    "confidence": 0.92,
+                    "testability": "high",
+                    "implementation_alignment": "high",
+                },
+            ),
+            NormalizedItem(
+                id="audit-conditional",
+                kind="audit_evidence",
+                source_name="fixture",
+                url="fixture://audit/conditional",
+                title="Conditional requirement",
+                summary="Medium alignment.",
+                metadata={
+                    "requirement_id": "REQ-CONDITIONAL",
+                    "original_text": "Conditional requirement.",
+                    "kano_type": "must_be",
+                    "confidence": 0.78,
+                    "testability": "medium",
+                    "implementation_alignment": "medium",
+                },
+            ),
+            NormalizedItem(
+                id="audit-no-go",
+                kind="audit_evidence",
+                source_name="fixture",
+                url="fixture://audit/no-go",
+                title="No-go requirement",
+                summary="Low alignment.",
+                metadata={
+                    "requirement_id": "REQ-NOGO",
+                    "original_text": "No-go requirement.",
+                    "kano_type": "reverse",
+                    "confidence": 0.45,
+                    "testability": "blocked",
+                    "implementation_alignment": "low",
+                },
+            ),
+        ]
+        artifacts = build_audit_artifacts(items, {"audit_topic": "Test"}, "run-1")
+        gate_summary = artifacts["requirements_audit_packet"]["gate_summary"]
+        self.assertEqual(gate_summary["go"], 1)
+        self.assertEqual(gate_summary["conditional_go"], 1)
+        self.assertEqual(gate_summary["no_go"], 1)
+        self.assertEqual(gate_summary["overall_assessment"], "no_go")
+
+    def test_gate_summary_conditional_go_without_no_go(self) -> None:
+        items = [
+            NormalizedItem(
+                id="audit-go",
+                kind="audit_evidence",
+                source_name="fixture",
+                url="fixture://audit/go",
+                title="Go requirement",
+                summary="High alignment.",
+                metadata={
+                    "requirement_id": "REQ-GO",
+                    "original_text": "Go requirement.",
+                    "kano_type": "must_be",
+                    "confidence": 0.92,
+                    "testability": "high",
+                    "implementation_alignment": "high",
+                },
+            ),
+            NormalizedItem(
+                id="audit-conditional",
+                kind="audit_evidence",
+                source_name="fixture",
+                url="fixture://audit/conditional",
+                title="Conditional requirement",
+                summary="Medium alignment.",
+                metadata={
+                    "requirement_id": "REQ-CONDITIONAL",
+                    "original_text": "Conditional requirement.",
+                    "kano_type": "must_be",
+                    "confidence": 0.78,
+                    "testability": "medium",
+                    "implementation_alignment": "medium",
+                },
+            ),
+        ]
+        artifacts = build_audit_artifacts(items, {"audit_topic": "Test"}, "run-1")
+        gate_summary = artifacts["requirements_audit_packet"]["gate_summary"]
+        self.assertEqual(gate_summary["go"], 1)
+        self.assertEqual(gate_summary["conditional_go"], 1)
+        self.assertEqual(gate_summary["no_go"], 0)
+        self.assertEqual(gate_summary["overall_assessment"], "conditional_go")
+
+    def test_gate_summary_go_when_all_go(self) -> None:
+        items = [
+            NormalizedItem(
+                id="audit-go-1",
+                kind="audit_evidence",
+                source_name="fixture",
+                url="fixture://audit/go-1",
+                title="Go requirement 1",
+                summary="High alignment.",
+                metadata={
+                    "requirement_id": "REQ-GO-1",
+                    "original_text": "Go requirement 1.",
+                    "kano_type": "must_be",
+                    "confidence": 0.92,
+                    "testability": "high",
+                    "implementation_alignment": "high",
+                },
+            ),
+            NormalizedItem(
+                id="audit-go-2",
+                kind="audit_evidence",
+                source_name="fixture",
+                url="fixture://audit/go-2",
+                title="Go requirement 2",
+                summary="High alignment.",
+                metadata={
+                    "requirement_id": "REQ-GO-2",
+                    "original_text": "Go requirement 2.",
+                    "kano_type": "must_be",
+                    "confidence": 0.95,
+                    "testability": "high",
+                    "implementation_alignment": "high",
+                },
+            ),
+        ]
+        artifacts = build_audit_artifacts(items, {"audit_topic": "Test"}, "run-1")
+        gate_summary = artifacts["requirements_audit_packet"]["gate_summary"]
+        self.assertEqual(gate_summary["go"], 2)
+        self.assertEqual(gate_summary["conditional_go"], 0)
+        self.assertEqual(gate_summary["no_go"], 0)
+        self.assertEqual(gate_summary["overall_assessment"], "go")
+
+
+class GoldenFixtureTests(unittest.TestCase):
+    def test_discovery_matches_expected_packet_golden(self) -> None:
+        fixture_path = Path(__file__).parent / "fixtures" / "kano_evidence.json"
+        expected_path = Path(__file__).parent / "fixtures" / "kano_expected_packet.json"
+
+        fixture_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+        expected_data = json.loads(expected_path.read_text(encoding="utf-8"))
+
+        items = [NormalizedItem(**item) for item in fixture_data["items"]]
+        artifacts = build_kano_artifacts(items, {"name": "kano_requirements_offline_eval"}, "run-1")
+
+        packet = artifacts["requirements_packet"]
+        expected = expected_data["expected_packet"]
+
+        self.assertEqual(len(packet["requirements"]), expected["promoted_requirements_count"])
+
+        if expected["promoted_requirements"]:
+            promoted_req = packet["requirements"][0]
+            expected_req = expected["promoted_requirements"][0]
+            self.assertEqual(promoted_req["kano_type"], expected_req["kano_type"])
+            self.assertEqual(promoted_req["priority"], expected_req["priority"])
+            self.assertEqual(promoted_req["gate_policy"], expected_req["gate_policy"])
+
+    def test_audit_matches_expected_summary_golden(self) -> None:
+        fixture_path = Path(__file__).parent / "fixtures" / "audit_evidence.json"
+        expected_path = Path(__file__).parent / "fixtures" / "audit_expected_summary.json"
+
+        fixture_data = json.loads(fixture_path.read_text(encoding="utf-8"))
+        expected_data = json.loads(expected_path.read_text(encoding="utf-8"))
+
+        items = [NormalizedItem(**item) for item in fixture_data["items"]]
+        artifacts = build_audit_artifacts(items, {"audit_topic": "KanoMode Audit"}, "run-1")
+
+        gate_summary = artifacts["requirements_audit_packet"]["gate_summary"]
+        expected = expected_data["expected_summary"]
+
+        self.assertEqual(gate_summary["go"], expected["verdict_distribution"]["go"])
+        self.assertEqual(gate_summary["conditional_go"], expected["verdict_distribution"]["conditional_go"])
+        self.assertEqual(gate_summary["no_go"], expected["verdict_distribution"]["no_go"])
+        self.assertEqual(gate_summary["overall_assessment"], expected["overall_assessment"])
+        self.assertEqual(gate_summary["total"], expected["total_requirements"])

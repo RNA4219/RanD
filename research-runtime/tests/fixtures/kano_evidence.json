@@ -3,6 +3,7 @@
     {
       "id": "kano-setup-complaint-ja",
       "kind": "kano_evidence",
+      "source_name": "fixture",
       "url": "fixture://kano/setup-complaint-ja",
       "title": "セットアップで詰まると要件定義まで進めない",
       "summary": "初期設定や証拠収集が失敗したときに、要求パケットがもっともらしく出ると困るという不満。",
@@ -39,6 +40,7 @@
     {
       "id": "kano-setup-official-en",
       "kind": "kano_evidence",
+      "source_name": "fixture",
       "url": "fixture://kano/setup-official-en",
       "title": "Requirements packets need explicit evidence quality fields",
       "summary": "Primary-style fixture evidence says requirements packets should preserve confidence, bias, and abort conditions.",
@@ -72,6 +74,7 @@
     {
       "id": "kano-kpi-praise-ja",
       "kind": "kano_evidence",
+      "source_name": "fixture",
       "url": "fixture://kano/kpi-praise-ja",
       "title": "KPI 草案まで出るとレビューが速い",
       "summary": "要求候補に KPI 草案が付くと、レビュー会での判断が速くなるという称賛。",

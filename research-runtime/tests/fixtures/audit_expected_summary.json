@@ -1,0 +1,16 @@
+{
+  "expected_summary": {
+    "schema_version": "1.0.0",
+    "verdict_distribution": {
+      "go": 1,
+      "conditional_go": 1,
+      "no_go": 1
+    },
+    "go_requirement_ids": ["REQ-001"],
+    "conditional_go_requirement_ids": ["REQ-002"],
+    "no_go_requirement_ids": ["REQ-003"],
+    "overall_assessment": "no_go",
+    "overall_reason": "1件no_goあり。要件改訂後に再監査推奨。",
+    "total_requirements": 3
+  }
+}

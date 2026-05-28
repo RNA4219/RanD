@@ -3,6 +3,7 @@
     {
       "id": "audit-req-001-go",
       "kind": "audit_evidence",
+      "source_name": "audit_fixture",
       "url": "fixture://audit/req-001",
       "title": "preset実行導線の監査",
       "summary": "REQ-001: preset実行導線は仕様と一致し、unittestで担保されている。",
@@ -42,6 +43,7 @@
     {
       "id": "audit-req-002-conditional",
       "kind": "audit_evidence",
+      "source_name": "audit_fixture",
       "url": "fixture://audit/req-002",
       "title": "safety fields validationの監査",
       "summary": "REQ-002: validationロジックは仕様で定義されているが、実装が部分的。",
@@ -85,6 +87,7 @@
     {
       "id": "audit-req-003-no-go",
       "kind": "audit_evidence",
+      "source_name": "audit_fixture",
       "url": "fixture://audit/req-003",
       "title": "attractive誤分類の監査",
       "summary": "REQ-003: attractiveをmust_be扱いするとgate overreachのリスク。",
