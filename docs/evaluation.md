@@ -40,6 +40,9 @@ KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mod
 | AC-K09 | downstream audit hooks | manual-bb-test-harness と code-to-gate の役割分担が仕様化されている |
 | AC-K10 | KanoMode の位置づけ | 狩野モデルそのものではなく、ネット証跡から品質分類を仮説化するモードだと README / requirements / specification に明記されている |
 | AC-K11 | 一元的品質の疑似再現 | `performance` がネット上の比較・改善要求・悪化時不満から疑似再現する仮分類だと説明されている |
+| AC-K12 | Eval gate semantics | `status=ok` は runtime 実行成功、`gate_summary.overall_assessment` は要件監査判定として分離されている。`no_go` 要件が 1 件でもある audit fixture では overall が `no_go` になる |
+| AC-K13 | Promotion gate | `requirements_packet` 昇格には confidence 閾値、安全 field、証拠 tier、Kano type の条件があり、低 confidence / `questionable` / 証拠不足候補を昇格しない |
+| AC-K14 | Golden Eval | discovery / audit の fixture に対して promoted requirements、verdict distribution、overall assessment を golden 期待値として検証する |
 
 ## 3. 検証コマンド
 
@@ -49,6 +52,7 @@ python -m unittest discover tests
 python -m rand_research.cli heartbeat --dry-run --max-items 2
 python -m rand_research.cli env-check
 python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
+python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5
 ```
 
 macOS / Linux runtime 入口:
@@ -89,6 +93,8 @@ node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Co
 - [ ] runtime README に単体依存と workspace 依存の説明がある
 - [ ] specification に schema compatibility policy と最小観測点がある
 - [ ] KanoMode の offline eval で `kano.json` と `requirements_packet.json` が保存される
+- [ ] KanoMode audit eval で `requirements_audit_packet.json` が保存され、`status=ok` と `overall_assessment` を別々に確認できる
+- [ ] KanoMode Eval の golden fixture が discovery / audit の期待値を検証している
 - [ ] Code-to-gate report の High/Critical finding が 0、または follow-up が記録されている
 
 ## 5. 残留リスク

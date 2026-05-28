@@ -80,6 +80,25 @@ node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Co
 3. `UNSAFE_DELETE` High finding が 0 になることを確認する。
 4. `integrations.py` の分割は P1 とし、同一変更で大きくなる場合は follow-up Task Seed に分ける。
 
+## 5.2 KanoMode Eval hardening 計画
+
+2026-05-28 時点で、KanoMode の offline eval / audit eval は `status=ok` で完走するが、社内導入判断に使う Eval gate としては追加 hardening が必要である。
+
+- Task Seed: [docs/tasks/TASK-20260528-02-kano-eval-hardening.md](docs/tasks/TASK-20260528-02-kano-eval-hardening.md)
+- Acceptance draft: [docs/acceptance/AC-20260528-02.md](docs/acceptance/AC-20260528-02.md)
+- 主な懸念:
+  - audit fixture に `no_go` が含まれていても `overall_assessment=conditional_go` になり得る。
+  - discovery の昇格条件が smoke / contract test 寄りで、confidence 閾値や証拠 tier を十分に gate していない。
+  - `status=ok` と「要件監査が Go であること」が混同されやすい。
+
+実装着手時は、まず `TASK-20260528-02` の P0 を扱う。
+
+1. audit overall verdict で `no_go` を正しく伝播させる。
+2. discovery promotion gate を強化する。
+3. discovery / audit golden fixture を追加する。
+4. CLI black-box eval で `status` と gate verdict を別々に確認する。
+5. manual-bb-test-harness と Code-to-gate で再検収する。
+
 ## 6. KanoMode 文書正本
 
 KanoMode の文書正本は次の順に読む。
