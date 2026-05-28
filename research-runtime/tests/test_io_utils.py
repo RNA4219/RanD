@@ -121,3 +121,17 @@ class FileLockTests(unittest.TestCase):
                 self.assertTrue(acquired)
                 self.assertTrue(lock.lock_path.exists())
             self.assertFalse(lock.lock_path.exists())
+
+    def test_file_lock_release_does_not_cleanup_outside_lock_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, tempfile.TemporaryDirectory() as outside_dir:
+            lock_path = Path(temp_dir) / "state.json.lock"
+            outside_lock = Path(outside_dir) / "state.json.lock"
+            outside_lock.write_text("outside", encoding="utf-8")
+            lock = FileLock(lock_path)
+
+            self.assertTrue(lock.acquire())
+            lock.lock_path = outside_lock
+            lock.release()
+
+            self.assertTrue(outside_lock.exists())
+            self.assertTrue(lock_path.exists())

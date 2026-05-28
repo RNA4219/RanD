@@ -44,6 +44,7 @@ class FileLock:
 
     def __init__(self, lock_path: Path, timeout_seconds: float = 5.0, retry_interval: float = 0.1) -> None:
         self.lock_path = lock_path
+        self._lock_parent = lock_path.parent.resolve()
         self.timeout_seconds = timeout_seconds
         self.retry_interval = retry_interval
         self._locked = False
@@ -64,10 +65,7 @@ class FileLock:
     def release(self) -> None:
         """Release the lock if held."""
         if self._locked:
-            try:
-                self.lock_path.unlink()
-            except OSError:
-                pass
+            _cleanup_owned_lock_file(self.lock_path, self._lock_parent)
             self._locked = False
 
     def __enter__(self) -> bool:
@@ -81,3 +79,14 @@ def with_file_lock(target_path: Path, timeout_seconds: float = 5.0) -> FileLock:
     """Return a FileLock for the given target file path."""
     lock_path = target_path.with_suffix(target_path.suffix + ".lock")
     return FileLock(lock_path, timeout_seconds=timeout_seconds)
+
+
+def _cleanup_owned_lock_file(lock_path: Path, lock_parent: Path) -> None:
+    try:
+        resolved_lock = lock_path.resolve()
+        resolved_parent = lock_parent.resolve()
+    except OSError:
+        return
+    if resolved_lock.parent != resolved_parent or not resolved_lock.name.endswith(".lock"):
+        return
+    _cleanup_owned_temp_file(resolved_lock, resolved_parent)
