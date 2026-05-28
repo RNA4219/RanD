@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -32,3 +33,51 @@ def _cleanup_owned_temp_file(temp_path: Path, target_parent: Path) -> None:
             resolved_temp.unlink()
         except OSError:
             pass
+
+
+class FileLock:
+    """Cross-platform advisory file lock using lock file with O_EXCL.
+
+    This provides a simple mutex mechanism for concurrent writes.
+    Not suitable for distributed systems - use proper distributed locks there.
+    """
+
+    def __init__(self, lock_path: Path, timeout_seconds: float = 5.0, retry_interval: float = 0.1) -> None:
+        self.lock_path = lock_path
+        self.timeout_seconds = timeout_seconds
+        self.retry_interval = retry_interval
+        self._locked = False
+
+    def acquire(self) -> bool:
+        """Attempt to acquire the lock. Returns True if successful."""
+        deadline = time.time() + self.timeout_seconds
+        while time.time() < deadline:
+            try:
+                fd = os.open(str(self.lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                self._locked = True
+                return True
+            except OSError:
+                time.sleep(self.retry_interval)
+        return False
+
+    def release(self) -> None:
+        """Release the lock if held."""
+        if self._locked:
+            try:
+                self.lock_path.unlink()
+            except OSError:
+                pass
+            self._locked = False
+
+    def __enter__(self) -> bool:
+        return self.acquire()
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.release()
+
+
+def with_file_lock(target_path: Path, timeout_seconds: float = 5.0) -> FileLock:
+    """Return a FileLock for the given target file path."""
+    lock_path = target_path.with_suffix(target_path.suffix + ".lock")
+    return FileLock(lock_path, timeout_seconds=timeout_seconds)

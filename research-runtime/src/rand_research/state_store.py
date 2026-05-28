@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from rand_research.io_utils import atomic_write_text
+from rand_research.io_utils import atomic_write_text, with_file_lock
 from rand_research.models import ExecutionContext, SCHEMA_VERSION
 
 
@@ -21,7 +21,26 @@ def load_taskstate(state_path: Path) -> dict[str, Any]:
     return payload
 
 
-def save_taskstate(state_path: Path, payload: dict[str, Any]) -> None:
+def save_taskstate(state_path: Path, payload: dict[str, Any], timeout_seconds: float = 5.0) -> bool:
+    """Save taskstate with file lock to prevent concurrent write conflicts.
+
+    Returns True if successful, False if lock acquisition failed.
+    """
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    payload.setdefault("schema_version", SCHEMA_VERSION)
+    content = json.dumps(payload, ensure_ascii=False, indent=2)
+    lock = with_file_lock(state_path, timeout_seconds=timeout_seconds)
+    if not lock.acquire():
+        return False
+    try:
+        atomic_write_text(state_path, content)
+        return True
+    finally:
+        lock.release()
+
+
+def save_taskstate_unsafe(state_path: Path, payload: dict[str, Any]) -> None:
+    """Save taskstate without file lock (for backward compatibility)."""
     state_path.parent.mkdir(parents=True, exist_ok=True)
     payload.setdefault("schema_version", SCHEMA_VERSION)
     content = json.dumps(payload, ensure_ascii=False, indent=2)
@@ -83,7 +102,12 @@ def upsert_task_record(
     artifacts: dict[str, str],
     summary: str,
     status_reason: list[str] | None = None,
-) -> dict[str, Any]:
+    timeout_seconds: float = 5.0,
+) -> dict[str, Any] | None:
+    """Upsert task record with file lock protection.
+
+    Returns the record if successful, None if lock acquisition failed.
+    """
     payload = load_taskstate(state_path)
     records = payload.setdefault("tasks", [])
     now = datetime.utcnow().isoformat() + "Z"
@@ -106,8 +130,9 @@ def upsert_task_record(
             "status_reason": status_reason or [],
         }
     )
-    save_taskstate(state_path, payload)
-    return record
+    if save_taskstate(state_path, payload, timeout_seconds=timeout_seconds):
+        return record
+    return None
 
 
 def _task_digest(task: dict[str, Any]) -> dict[str, Any]:

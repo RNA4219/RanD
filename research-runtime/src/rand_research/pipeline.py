@@ -300,7 +300,20 @@ def _safe_task_update(
     errors: list[str],
 ) -> dict[str, Any]:
     try:
-        return upsert_task_record(state_path, run_id, preset_name, status, artifacts, summary, _unique(status_reason))
+        record = upsert_task_record(state_path, run_id, preset_name, status, artifacts, summary, _unique(status_reason))
+        if record is None:
+            dependency_health["state"] = "failed"
+            mutable_reasons.append("state_write_failed")
+            errors.append("state_write_failed: lock acquisition timeout")
+        return {
+            "task_id": f"task-{run_id}",
+            "run_id": run_id,
+            "preset": preset_name,
+            "status": status,
+            "artifacts": artifacts,
+            "summary": summary,
+            "status_reason": _unique(status_reason),
+        }
     except Exception as exc:
         dependency_health["state"] = "failed"
         mutable_reasons.append("state_write_failed")
