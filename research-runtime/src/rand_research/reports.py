@@ -16,16 +16,19 @@ def build_report_payload(
     task_record: dict[str, Any],
     memx_record: dict[str, Any],
     tracker_event: dict[str, Any],
+    gate_payload: dict[str, Any],
     pre_state_context: dict[str, Any],
     post_state_context: dict[str, Any],
     artifacts: dict[str, str],
     extra_payloads: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    operational_summary = build_operational_summary(items, dependency_health, gate_payload)
     payload = {
         "schema_version": SCHEMA_VERSION,
         "status": status,
         "status_reason": status_reason,
         "run_meta": meta.to_dict(),
+        "operational_summary": operational_summary,
         "collected_items": [item.to_dict() for item in items],
         "state_context": {
             "before": pre_state_context,
@@ -40,6 +43,33 @@ def build_report_payload(
     if extra_payloads:
         payload.update(extra_payloads)
     return payload
+
+
+def build_operational_summary(
+    items: list[NormalizedItem],
+    dependency_health: dict[str, str],
+    gate_payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    seen_count = sum(1 for item in items if item.metadata.get("seen_before"))
+    high_priority_count = sum(1 for item in items if item.high_priority)
+    dependency_counts: dict[str, int] = {}
+    for component_status in dependency_health.values():
+        dependency_counts[component_status] = dependency_counts.get(component_status, 0) + 1
+
+    gate_verdict_counts: dict[str, int] = {}
+    for result in (gate_payload or {}).get("results", []):
+        verdict = result.get("decision", {}).get("verdict", "unknown")
+        gate_verdict_counts[verdict] = gate_verdict_counts.get(verdict, 0) + 1
+
+    return {
+        "item_count": len(items),
+        "new_item_count": len(items) - seen_count,
+        "seen_before_count": seen_count,
+        "high_priority_count": high_priority_count,
+        "source_count": len({item.source_name for item in items}),
+        "dependency_status_counts": dependency_counts,
+        "gate_verdict_counts": gate_verdict_counts,
+    }
 
 
 def save_run_outputs(
@@ -87,6 +117,7 @@ def save_run_outputs(
         task_record,
         memx_record,
         tracker_event,
+        gate_payload,
         pre_state_context,
         post_state_context,
         artifacts,
@@ -124,6 +155,7 @@ def render_markdown(
 ) -> str:
     before = state_context.get("before", {})
     after = state_context.get("after", {})
+    operational_summary = build_operational_summary(items, dependency_health, gate_payload)
     lines = [
         f"# Research Report: {meta.preset}",
         "",
@@ -133,6 +165,8 @@ def render_markdown(
         f"- Status Reason: `{', '.join(status_reason) or 'none'}`",
         f"- Started: `{meta.started_at}`",
         f"- Finished: `{meta.finished_at or 'running'}`",
+        f"- Items: `{operational_summary['item_count']}` total / `{operational_summary['new_item_count']}` new / `{operational_summary['seen_before_count']}` seen before",
+        f"- High Priority Items: `{operational_summary['high_priority_count']}`",
         "",
         "## Dependency Health",
         "",

@@ -44,7 +44,12 @@ class ReportsTests(unittest.TestCase):
                 meta,
                 items,
                 {'schema_version': SCHEMA_VERSION, 'status': 'ok', 'mode': 'fallback', 'results': []},
-                {'schema_version': SCHEMA_VERSION, 'status': 'degraded', 'mode': 'fallback', 'results': []},
+                {
+                    'schema_version': SCHEMA_VERSION,
+                    'status': 'degraded',
+                    'mode': 'fallback',
+                    'results': [{'decision': {'verdict': 'hold'}}],
+                },
                 task_record,
                 memx_record,
                 tracker_event,
@@ -69,6 +74,11 @@ class ReportsTests(unittest.TestCase):
             self.assertEqual(report['schema_version'], SCHEMA_VERSION)
             self.assertEqual(report['status'], 'degraded')
             self.assertEqual(report['status_reason'], ['gate_failed'])
+            self.assertEqual(report['operational_summary']['item_count'], 1)
+            self.assertEqual(report['operational_summary']['new_item_count'], 1)
+            self.assertEqual(report['operational_summary']['high_priority_count'], 1)
+            self.assertEqual(report['operational_summary']['dependency_status_counts']['degraded'], 1)
+            self.assertEqual(report['operational_summary']['gate_verdict_counts']['hold'], 1)
             for artifact_path in artifacts.values():
                 self.assertTrue(Path(artifact_path).exists())
 
@@ -77,6 +87,7 @@ class ReportsTests(unittest.TestCase):
             self.assertEqual(report_json['state_context']['before']['previous_run_count'], 1)
             self.assertEqual(report_json['state_context']['after']['previous_run_count'], 2)
             self.assertIn('artifacts', report_json)
+            self.assertIn('operational_summary', report_json)
             self.assertEqual(set(report_json['artifacts'].keys()), expected_keys)
             self.assertEqual(report_json['dependency_health']['gate'], 'degraded')
             self.assertEqual(report_json['dependency_health']['report'], 'ok')
