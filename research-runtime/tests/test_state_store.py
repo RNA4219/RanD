@@ -2,8 +2,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from rand_research.state_store import build_execution_context
+from rand_research.state_store import build_execution_context, save_taskstate
 
 
 class StateStoreTests(unittest.TestCase):
@@ -63,6 +64,17 @@ class StateStoreTests(unittest.TestCase):
             self.assertEqual(len(context.open_tasks), 1)
             self.assertIn("https://arxiv.org/abs/1", context.known_urls)
             self.assertEqual(context.recent_tasks[0]["task_id"], "task-2")
+
+    def test_save_taskstate_uses_common_atomic_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state_path = Path(tmp_dir) / "state" / "taskstate.json"
+
+            with patch("rand_research.state_store.atomic_write_text") as atomic_write:
+                save_taskstate(state_path, {"tasks": []})
+
+            atomic_write.assert_called_once()
+            self.assertEqual(atomic_write.call_args.args[0], state_path)
+            self.assertIn('"schema_version"', atomic_write.call_args.args[1])
 
 
 if __name__ == "__main__":

@@ -4,66 +4,14 @@ import importlib
 import json
 import os
 import subprocess
-import sys
-import tempfile
 import urllib.error
 import urllib.request
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
-from rand_research.config import load_runtime_config
+from rand_research.env_loader import ensure_repo_paths, load_env_from_peer_repos
 from rand_research.models import NormalizedItem, SCHEMA_VERSION
-from rand_research.paths import installer_root, workspace_root
-
-
-def ensure_repo_paths() -> None:
-    repo_map = {
-        "insight-agent": installer_root() / "insight-agent",
-        "experiment-gate": installer_root() / "experiment-gate",
-        "agent-taskstate": installer_root() / "agent-taskstate",
-        "open_deep_research": installer_root() / "open_deep_research" / "src",
-        "tracker-bridge-materials": installer_root() / "tracker-bridge-materials",
-        "memx-resolver": installer_root() / "memx-resolver",
-    }
-    for path in repo_map.values():
-        if path.exists():
-            sys.path.insert(0, str(path))
-
-
-def load_env_from_peer_repos() -> dict[str, Any]:
-    codex_dev_root = workspace_root().parent.parent
-    candidates = [
-        codex_dev_root / "experiment-gate" / ".env",
-        codex_dev_root / "insight-agent" / ".env",
-        codex_dev_root / "Roadmap-Design-Skill" / ".env",
-        codex_dev_root / "pulse-kestra" / "bridge" / ".env",
-    ]
-    loaded_files: list[str] = []
-    loaded_keys: list[str] = []
-    for path in candidates:
-        if not path.exists():
-            continue
-        for line in path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
-                continue
-            key, value = stripped.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip("'").strip('"')
-            if not key or key in os.environ:
-                continue
-            os.environ[key] = value
-            loaded_keys.append(key)
-        loaded_files.append(str(path))
-    provider_report = _prefer_runtime_providers()
-    timeout_report = _stretch_runtime_timeouts()
-    return {
-        "loaded_files": loaded_files,
-        "loaded_keys": sorted(set(loaded_keys)),
-        "provider_report": provider_report,
-        "timeout_report": timeout_report,
-    }
+from rand_research.paths import installer_root
+from rand_research.sync_writers import write_memx_journal, write_tracker_sync
 
 
 def build_insight_payload(item: NormalizedItem) -> dict[str, Any]:
@@ -208,57 +156,6 @@ def run_gate(items: list[NormalizedItem], dependency_health: dict[str, str]) -> 
             "error": str(exc),
             "dependency_health": dependency_health,
         }
-
-
-def write_memx_journal(path: Path, run_id: str, preset: str, items: list[NormalizedItem], artifacts: dict[str, str]) -> dict[str, Any]:
-    payload = _load_log(path, "entries")
-    entry = {
-        "schema_version": SCHEMA_VERSION,
-        "entry_id": f"memx-{run_id}",
-        "scope": f"rand:{preset}",
-        "recorded_at": datetime.utcnow().isoformat() + "Z",
-        "summary": f"{len(items)} items collected",
-        "sources": [item.url for item in items[:10]],
-        "artifacts": artifacts,
-        "status": "ok",
-        "error": None,
-    }
-    payload["entries"].append(entry)
-    _write_json(path, payload)
-    return entry
-
-
-def write_tracker_sync(path: Path, run_id: str, preset: str, items: list[NormalizedItem], gate_payload: dict[str, Any]) -> dict[str, Any]:
-    payload = _load_log(path, "events")
-    event = {
-        "schema_version": SCHEMA_VERSION,
-        "sync_id": f"sync-{run_id}",
-        "recorded_at": datetime.utcnow().isoformat() + "Z",
-        "preset": preset,
-        "items": [
-            {
-                "title": item.title,
-                "url": item.url,
-                "kind": item.kind,
-                "priority": item.priority,
-            }
-            for item in items[:5]
-        ],
-        "gate_recommendations": [
-            {
-                "request_id": result.get("run", {}).get("request_id"),
-                "verdict": result.get("decision", {}).get("verdict"),
-                "recommended_action": result.get("next_step", {}).get("recommended_action"),
-                "dependency_health": result.get("dependency_health", gate_payload.get("dependency_health", {})),
-            }
-            for result in gate_payload.get("results", [])
-        ],
-        "status": "ok",
-        "error": None,
-    }
-    payload["events"].append(event)
-    _write_json(path, payload)
-    return event
 
 
 def check_dependencies() -> dict[str, Any]:
@@ -536,66 +433,3 @@ def _coerce_integration_results(response: dict[str, Any]) -> list[dict[str, Any]
 
 def _integration_timeout_seconds() -> int:
     return max(int(os.environ.get("RAND_INTEGRATION_TIMEOUT_SECONDS", "0") or 0), 30)
-
-
-def _load_log(path: Path, key: str) -> dict[str, Any]:
-    if not path.exists():
-        return {"schema_version": SCHEMA_VERSION, key: []}
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    payload.setdefault("schema_version", SCHEMA_VERSION)
-    payload.setdefault(key, [])
-    for entry in payload.get(key, []):
-        if isinstance(entry, dict):
-            entry.setdefault("schema_version", SCHEMA_VERSION)
-    return payload
-
-
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = json.dumps(payload, ensure_ascii=False, indent=2)
-    _atomic_write(path, content)
-
-
-def _atomic_write(path: Path, content: str) -> None:
-    """Write file atomically using temp file + rename."""
-    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp", prefix=path.name)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(content)
-        os.replace(tmp_path, path)
-    except Exception:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
-
-
-def _prefer_runtime_providers() -> dict[str, Any]:
-    sequence: list[str] = []
-    if os.environ.get("OPENROUTER_API_KEY"):
-        sequence.append("openrouter")
-    if os.environ.get("DASHSCOPE_API_KEY"):
-        sequence.append("alibaba")
-    if sequence:
-        os.environ["LLM_PROVIDER"] = sequence[0]
-        os.environ["LLM_PROVIDER_SEQUENCE"] = ",".join(sequence)
-    return {
-        "selected_provider": os.environ.get("LLM_PROVIDER", ""),
-        "provider_sequence": os.environ.get("LLM_PROVIDER_SEQUENCE", ""),
-    }
-
-
-def _stretch_runtime_timeouts() -> dict[str, Any]:
-    runtime = load_runtime_config()
-    llm_timeout = str(max(int(os.environ.get("LLM_TIMEOUT_SECONDS", "0") or 0), int(runtime.get("llm_timeout_seconds", 600))))
-    llm_retries = str(max(int(os.environ.get("LLM_MAX_RETRIES", "0") or 0), int(runtime.get("llm_max_retries", 4))))
-    llm_backoff = str(max(float(os.environ.get("LLM_RETRY_BACKOFF_SECONDS", "0") or 0), float(runtime.get("llm_retry_backoff_seconds", 2.0))))
-    os.environ["LLM_TIMEOUT_SECONDS"] = llm_timeout
-    os.environ["LLM_MAX_RETRIES"] = llm_retries
-    os.environ["LLM_RETRY_BACKOFF_SECONDS"] = llm_backoff
-    return {
-        "llm_timeout_seconds": llm_timeout,
-        "llm_max_retries": llm_retries,
-        "llm_retry_backoff_seconds": llm_backoff,
-    }

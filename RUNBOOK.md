@@ -57,6 +57,29 @@ uv run python -m rand_research.cli run-once --preset kano_requirements_offline_e
 3. 文書実装だけ続ける場合は、コード差分には触らず、RUNBOOK / requirements / specification / Task Seed / evaluation の整合だけを更新する。
 4. コード実装へ進む場合は、先行差分をレビューしてから正式な P0 実装タスクとして扱う。
 
+## 5.1 Code-to-gate 更新計画
+
+2026-05-28 時点で、Code-to-gate による RanD 静的診断を実施した。
+
+- Task Seed: [docs/tasks/TASK-20260528-01-code-to-gate-hardening.md](docs/tasks/TASK-20260528-01-code-to-gate-hardening.md)
+- Acceptance draft: [docs/acceptance/AC-20260528-01.md](docs/acceptance/AC-20260528-01.md)
+- 初回レポート: `C:\tmp\rand-code-to-gate-clean\analysis-report.md`
+- 結果: Critical 0 / High 2 / Medium 1
+
+再実行:
+
+```powershell
+cd C:\Users\ryo-n\Codex_dev\RanD
+node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Codex_dev\RanD --emit all --out C:\tmp\rand-code-to-gate-clean --llm-provider deterministic --cache force --ignore research-runtime/runs,research-runtime/state,research-runtime/.pytest_cache,research-runtime/src/rand_research_runtime.egg-info
+```
+
+実装着手時は、まず `TASK-20260528-01` の P0 を扱う。
+
+1. atomic write を共通 utility に集約する。
+2. temp cleanup の境界テストを追加する。
+3. `UNSAFE_DELETE` High finding が 0 になることを確認する。
+4. `integrations.py` の分割は P1 とし、同一変更で大きくなる場合は follow-up Task Seed に分ける。
+
 ## 6. KanoMode 文書正本
 
 KanoMode の文書正本は次の順に読む。

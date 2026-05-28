@@ -21,6 +21,7 @@
 | AC-11 | 標準チェーン | README / specification が `research -> insight -> gate -> sync -> notify` を正規経路として扱う |
 | AC-12 | macOS / Linux 入口 | `run-research-once.sh`, `run-research-schedule.sh`, `research-runtime/scripts/*.sh` が存在し、runtime が PowerShell 非依存で起動できる |
 | AC-13 | API / subagent fallback | Insight / Gate が外部 API を優先し、API 失敗時にサブエージェント fallback を試す unit test が通る |
+| AC-14 | Code-to-gate release gate | `code-to-gate analyze` の effective High/Critical finding が 0、または Task Seed / Acceptance に根拠付き follow-up がある |
 
 ### 2.1 KanoMode Acceptance Criteria
 
@@ -65,6 +66,18 @@ cd ..\r-and-d-agent-installer
 .\scripts\status.ps1
 ```
 
+Code-to-gate gate:
+
+```powershell
+cd C:\Users\ryo-n\Codex_dev\RanD
+node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Codex_dev\RanD --emit all --out C:\tmp\rand-code-to-gate-clean --llm-provider deterministic --cache force --ignore research-runtime/runs,research-runtime/state,research-runtime/.pytest_cache,research-runtime/src/rand_research_runtime.egg-info
+```
+
+判定:
+
+- Critical / High の effective finding は release 前に 0 にする。
+- やむをえず残す場合は、`docs/tasks/` の Task Seed と `docs/acceptance/` の Acceptance Record に、根拠、影響、期限つき follow-up を記録する。
+
 ## 4. 手動確認項目
 
 - [ ] ルート README 先頭に Quickstart がある
@@ -76,6 +89,7 @@ cd ..\r-and-d-agent-installer
 - [ ] runtime README に単体依存と workspace 依存の説明がある
 - [ ] specification に schema compatibility policy と最小観測点がある
 - [ ] KanoMode の offline eval で `kano.json` と `requirements_packet.json` が保存される
+- [ ] Code-to-gate report の High/Critical finding が 0、または follow-up が記録されている
 
 ## 5. 残留リスク
 

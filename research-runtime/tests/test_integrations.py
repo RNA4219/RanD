@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 from rand_research import integrations
 from rand_research.models import NormalizedItem, SCHEMA_VERSION
+from rand_research import sync_writers
 
 
 class IntegrationsTests(unittest.TestCase):
@@ -185,10 +186,38 @@ class IntegrationsTests(unittest.TestCase):
             path = Path(temp_dir) / 'memx.json'
             path.write_text(json.dumps({'entries': [{'entry_id': 'memx-1'}]}), encoding='utf-8')
 
-            payload = integrations._load_log(path, 'entries')
+            payload = sync_writers._load_log(path, 'entries')
 
             self.assertEqual(payload['schema_version'], SCHEMA_VERSION)
             self.assertEqual(payload['entries'][0]['schema_version'], SCHEMA_VERSION)
+
+    def test_sync_writers_use_common_atomic_write(self) -> None:
+        item = NormalizedItem(
+            id='paper-1',
+            kind='paper',
+            source_name='arxiv',
+            url='https://example.com/paper-1',
+            title='Example Paper',
+            high_priority=True,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with patch('rand_research.sync_writers.atomic_write_text') as atomic_write:
+                memx_entry = integrations.write_memx_journal(root / 'memx.json', 'run-1', 'paper_arxiv_ai_recent', [item], {})
+                tracker_event = integrations.write_tracker_sync(
+                    root / 'tracker.json',
+                    'run-1',
+                    'paper_arxiv_ai_recent',
+                    [item],
+                    {'results': [{'decision': {'verdict': 'go'}, 'next_step': {'recommended_action': 'probe'}}]},
+                )
+
+            self.assertEqual(memx_entry['entry_id'], 'memx-run-1')
+            self.assertEqual(tracker_event['sync_id'], 'sync-run-1')
+            self.assertEqual(atomic_write.call_count, 2)
+            self.assertEqual(atomic_write.call_args_list[0].args[0], root / 'memx.json')
+            self.assertEqual(atomic_write.call_args_list[1].args[0], root / 'tracker.json')
 
 
 if __name__ == '__main__':
