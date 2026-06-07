@@ -159,6 +159,14 @@ KanoMode の詳細な要件・仕様・検収記録は次を正本にします�
 - notification / replay / dedupe の実件数は `pulse-kestra` 側の flow output と taskstate 記録に依存します。
 - peer repo 側の API や schema が変わった場合は、`env-check` だけでは完全検知できないため定期的な統合確認が必要です。
 
+## ガバナンスポリシー
+
+RanD は、外部コンポーネント、LLM 呼び出し、fallback 経路、生成 artifact を明示的な信頼境界として扱います。
+
+- [コンポーネント信頼ポリシー](docs/component-trust-policy.md)
+- [Fallback ポリシー](docs/fallback-policy.md)
+- [Artifact Contract ポリシー](docs/artifact-contract-policy.md)
+
 ## preset と heartbeat の選択規則
 
 現在の preset は次の 6 つです。
