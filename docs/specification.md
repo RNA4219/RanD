@@ -312,6 +312,7 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 - latest snapshot / latest review の path を返す
 - `next_steps` に `review_outbox`, `capture_snapshot`, `record_review`, `inspect_blockers`, `continue_pilot` のいずれかを返す
 - 各 next step は理由と次に実行する CLI command を持つ
+- latest review が latest snapshot を `accept` または `accept_with_review` でカバーしている場合は、pending outbox が残っていても `continue_pilot_with_review` を返せる
 
 ### 6.4.3 notification outbox remediation
 

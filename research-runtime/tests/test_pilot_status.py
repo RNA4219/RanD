@@ -54,6 +54,24 @@ class PilotStatusTests(unittest.TestCase):
             self.assertEqual(status["status"], "go")
             self.assertEqual(status["next_steps"][0]["name"], "continue_pilot")
 
+    def test_status_can_continue_with_reviewed_degraded_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._write_valid_run(root)
+            self._write_operations(root, pending=True)
+
+            with patch("rand_research.pilot_health.load_heartbeat_config", return_value=self._heartbeat_config()):
+                result = write_pilot_snapshot(root)
+                review_pilot_snapshot(Path(result["path"]), "accept_with_review", "tester")
+                status = build_pilot_status(root)
+
+            step_names = [step["name"] for step in status["next_steps"]]
+            self.assertEqual(status["status"], "degraded")
+            self.assertTrue(status["review_covers_latest_snapshot"])
+            self.assertEqual(status["latest_review_decision"], "accept_with_review")
+            self.assertNotIn("review_outbox", step_names)
+            self.assertEqual(status["next_steps"][0]["name"], "continue_pilot_with_review")
+
     def _write_valid_run(self, root: Path) -> None:
         run_id = "20260702-010000-ok"
         run_dir = root / "runs" / run_id

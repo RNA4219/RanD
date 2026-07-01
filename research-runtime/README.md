@@ -182,7 +182,7 @@ python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstre
 python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_handoff.json
 ```
 
-`pilot-status` は現在の readiness、pending outbox、latest snapshot/review、次に叩くコマンドをまとめて返します。pilot 運用時はまずこのコマンドで状態を見ます。
+`pilot-status` は現在の readiness、pending outbox、latest snapshot/review、次に叩くコマンドをまとめて返します。latest review が latest snapshot を `accept` または `accept_with_review` でカバーしている場合、pending outbox が残っていても `continue_pilot_with_review` を返せます。pilot 運用時はまずこのコマンドで状態を見ます。
 
 `pilot-check` は latest run、artifact schema、operations state、heartbeat config、metrics をまとめて検査し、`go / degraded / no_go` を返します。`degraded` は pending 通知や最新 run の degraded など、人間レビュー付きなら pilot 継続可能な状態を表します。
 
