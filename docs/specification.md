@@ -325,6 +325,16 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 - `review_required` は `status != go` または pending outbox がある場合に `true` とする
 - `--dry-run` は保存せず snapshot payload だけを返す
 
+### 6.4.5 pilot review
+
+`python -m rand_research.cli pilot-review --snapshot <path> --decision <decision>` は、snapshot に対する運用判断を `pilot_review` artifact として保存する。
+
+- 既定の保存先は `<snapshot>.review.json` とする
+- `decision` は `accept`, `accept_with_review`, `hold`, `block` のいずれかとする
+- artifact は `schema_version`, `review_id`, `type`, `reviewed_at`, `reviewer`, `decision`, `notes`, `snapshot_ref`, `required_followups`, `review_required` を持つ
+- `required_followups` は `pilot-check` の warning / failure と `outbox-plan` の action を引き継ぐ
+- `accept_with_review`, `hold`, `block` は `review_required=true` とする
+
 ## 6.5 最小観測点
 
 ダッシュボード自体は本仕様の対象外とするが、次の指標を後から集計できる field / log を保持しなければならない。

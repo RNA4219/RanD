@@ -45,6 +45,7 @@ RanD のコンポーネント境界では、暗黙の tool state や非構造な
 - `decision_record`: 人間または承認済み gate の判断と理由を保持する
 - `task_state_snapshot`: task、run、state の時点情報を保持する
 - `pilot_snapshot`: pilot readiness、outbox remediation、metrics の時点証跡を保持する
+- `pilot_review`: pilot snapshot に対する運用判断、理由、follow-up を保持する
 - `fallback_record`: fallback 経路、理由、失われた capability を保持する
 - `external_sync_result`: tracker、notification など外部同期の結果を保持する
 

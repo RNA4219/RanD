@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rand_research.artifact_schema import validate_artifact_path
-from rand_research.pilot_snapshot import build_pilot_snapshot, write_pilot_snapshot
+from rand_research.pilot_snapshot import build_pilot_snapshot, review_pilot_snapshot, write_pilot_snapshot
 
 
 class PilotSnapshotTests(unittest.TestCase):
@@ -39,6 +39,31 @@ class PilotSnapshotTests(unittest.TestCase):
             self.assertEqual(result["status"], "written")
             self.assertTrue(out.exists())
             validation = validate_artifact_path(out, "pilot_snapshot")
+            self.assertEqual(validation["status"], "ok")
+
+    def test_review_snapshot_creates_followup_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._write_valid_run(root)
+            self._write_operations(root, pending=True)
+            snapshot_path = root / "pilot-snapshot-test.json"
+
+            with patch("rand_research.pilot_health.load_heartbeat_config", return_value=self._heartbeat_config()):
+                write_pilot_snapshot(root, snapshot_path)
+                result = review_pilot_snapshot(
+                    snapshot_path,
+                    decision="accept_with_review",
+                    reviewer="tester",
+                    notes="pending notification is acceptable for pilot",
+                )
+
+            review_path = Path(result["path"])
+            self.assertTrue(review_path.exists())
+            self.assertEqual(result["review"]["decision"], "accept_with_review")
+            self.assertTrue(result["review"]["review_required"])
+            self.assertTrue(result["review"]["required_followups"])
+            validation = validate_artifact_path(review_path)
+            self.assertEqual(validation["artifact_type"], "pilot_review")
             self.assertEqual(validation["status"], "ok")
 
     def _write_valid_run(self, root: Path) -> None:

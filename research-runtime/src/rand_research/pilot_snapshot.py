@@ -44,6 +44,84 @@ def write_pilot_snapshot(runtime_root: Path, output_path: Path | None = None, ou
     }
 
 
+def review_pilot_snapshot(
+    snapshot_path: Path,
+    decision: str,
+    reviewer: str,
+    notes: str = "",
+    output_path: Path | None = None,
+) -> dict[str, Any]:
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    review = build_pilot_review(snapshot, snapshot_path, decision, reviewer, notes)
+    target = output_path or snapshot_path.with_suffix(".review.json")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(target, json.dumps(review, ensure_ascii=False, indent=2))
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "written",
+        "path": str(target),
+        "review": review,
+    }
+
+
+def build_pilot_review(
+    snapshot: dict[str, Any],
+    snapshot_path: Path,
+    decision: str,
+    reviewer: str,
+    notes: str = "",
+) -> dict[str, Any]:
+    if decision not in {"accept", "accept_with_review", "hold", "block"}:
+        raise ValueError(f"unsupported pilot review decision: {decision}")
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "review_id": f"pilot-review-{snapshot.get('snapshot_id', 'unknown')}",
+        "type": "pilot_review",
+        "reviewed_at": _now(),
+        "reviewer": reviewer,
+        "decision": decision,
+        "notes": notes,
+        "snapshot_ref": {
+            "path": str(snapshot_path),
+            "snapshot_id": snapshot.get("snapshot_id"),
+            "status": snapshot.get("status"),
+            "latest_run_id": snapshot.get("latest_run_id"),
+        },
+        "required_followups": _required_followups(snapshot),
+        "review_required": decision in {"accept_with_review", "hold", "block"},
+    }
+
+
+def _required_followups(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    followups: list[dict[str, Any]] = []
+    for check in snapshot.get("pilot_check", {}).get("checks", []):
+        if check.get("level") == "ok":
+            continue
+        followups.append(
+            {
+                "source": "pilot_check",
+                "name": check.get("name"),
+                "level": check.get("level"),
+                "message": check.get("message"),
+                "detail": check.get("detail", {}),
+            }
+        )
+    for action in snapshot.get("outbox_plan", {}).get("actions", []):
+        followups.append(
+            {
+                "source": "outbox_plan",
+                "name": action.get("notification_id"),
+                "level": "warn",
+                "message": action.get("reason"),
+                "detail": {
+                    "recommended_action": action.get("recommended_action"),
+                    "next_commands": action.get("next_commands", []),
+                },
+            }
+        )
+    return followups
+
+
 def _default_snapshot_path(runtime_root: Path, snapshot_id: str) -> Path:
     return runtime_root / "state" / "pilot-snapshots" / f"{snapshot_id}.json"
 

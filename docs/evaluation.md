@@ -50,6 +50,7 @@ KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mod
 | AC-K19 | Pilot readiness gate | `pilot-check` CLI が latest run、artifact schema、operations state、heartbeat config、metrics を集約し、`go / degraded / no_go` を返す |
 | AC-K20 | Outbox remediation | `outbox-plan` CLI が pending / failed notification の推奨アクションを dry-run で返す |
 | AC-K21 | Pilot snapshot | `pilot-snapshot` CLI が pilot readiness、outbox plan、metrics を JSON artifact として保存する |
+| AC-K22 | Pilot review | `pilot-review` CLI が snapshot に対する判断と follow-up を JSON artifact として保存する |
 
 ## 3. 検証コマンド
 
@@ -63,6 +64,7 @@ python -m rand_research.cli run-once --preset kano_requirements_audit --max-item
 python -m rand_research.cli pilot-check
 python -m rand_research.cli outbox-plan
 python -m rand_research.cli pilot-snapshot --dry-run
+python -m rand_research.cli pilot-review --snapshot state/pilot-snapshots/<snapshot>.json --decision accept_with_review --notes "reviewed"
 python -m rand_research.cli metrics
 python -m rand_research.cli resend-pending --limit 10
 python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format json
@@ -115,6 +117,7 @@ node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Co
 - [x] pilot runtime readiness は `pilot-check` CLI で一括確認できる
 - [x] notification outbox の remediation は `outbox-plan` CLI で確認できる
 - [x] pilot readiness 証跡は `pilot-snapshot` CLI で保存できる
+- [x] pilot snapshot の運用判断は `pilot-review` CLI で保存できる
 - [x] Code-to-gate report の High/Critical finding が 0、または follow-up が記録されている
 
 ## 5. 残留リスク

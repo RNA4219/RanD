@@ -80,6 +80,7 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 | FR-R14 | tracker sync は実送信前に dry-run issue payload を生成できること | `tracker_sync.json.events[*].dry_run_issues` で確認できる |
 | FR-R15 | pending / failed notification は状態を書き換えずに remediation plan を確認できること | `outbox-plan` CLI が推奨アクションと次コマンドを返す |
 | FR-R16 | pilot readiness と outbox remediation は監査用 snapshot として保存できること | `pilot-snapshot` CLI が `state/pilot-snapshots/` に JSON artifact を保存する |
+| FR-R17 | pilot snapshot に対する運用判断を監査用 review artifact として保存できること | `pilot-review` CLI が `*.review.json` を保存する |
 
 ### 4.3 Artifact / Schema
 
@@ -128,6 +129,7 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 - AC-14: tracker sync payload に dry-run issue が含まれる
 - AC-15: `outbox-plan` CLI が pending / failed notification の推奨アクションを返す
 - AC-16: `pilot-snapshot` CLI が pilot readiness 証跡を保存する
+- AC-17: `pilot-review` CLI が pilot snapshot の判断と follow-up を保存する
 
 ## 7. 拡張要件
 
