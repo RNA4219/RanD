@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "template_type": "kano_shadow_eval",
+  "run_id": "example-run",
+  "topic": "RanD KanoMode requirements discovery",
+  "review_fields": [
+    "relevance_score_1_5",
+    "evidence_quality_1_5",
+    "bias_flags",
+    "promote_decision",
+    "reviewer_note"
+  ],
+  "rows": [
+    {
+      "candidate_id": "KC-001",
+      "candidate_statement": "KanoMode は証拠不足や検索失敗を明示し、要求パケットを過信させてはならない。",
+      "kano_type": "must_be",
+      "evidence_id": "EV-001",
+      "source_ref": "https://example.com/search-result",
+      "source_type": "complaints",
+      "source_tier": "user_signal",
+      "locale": "ja-JP",
+      "summary": "検索結果から得た不満の要約。",
+      "relevance_score_1_5": "",
+      "evidence_quality_1_5": "",
+      "bias_flags": "",
+      "promote_decision": "pending",
+      "reviewer_note": ""
+    }
+  ]
+}

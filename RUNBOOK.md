@@ -24,23 +24,23 @@ KanoMode は、まずドキュメント実装として進める。
 - 文書だけ整える場合は、`docs/requirements_kano_mode.md`、`docs/tasks/`、`docs/kano_mode_handoff.md` を中心に更新する。
 - **[2026-05-26 実装完了]** Discovery mode と Audit mode の実装が完了し、commit済み (`ef89f64`)。
 - **[2026-05-26 修正完了]** atomic write対策追加（state file corruption防止）。
+- **[2026-07-01 追加]** live/search shadow adapter、`downstream_handoff.json`、operations outbox / replay / resend / metrics CLI を追加。live search と外部送信は既定無効または dry-run として扱う。
 - offline eval で `kano.json`、`requirements_packet.json`、`requirements_audit_packet.json` が生成され、`status: ok` になることを確認済み。
-- unittest 35 tests OK。
+- pytest 70 tests OK。
 
 ## 4. 検証済みコマンド
 
-2026-05-26 時点で、先行コード差分を含む状態では次が通っている。
+2026-07-01 時点で、次が通っている。
 
 ```powershell
 cd research-runtime
-uv run python -m unittest discover tests
+uv run pytest
 ```
 
 結果:
 
 ```text
-Ran 29 tests in 2.622s
-OK
+70 passed
 ```
 
 また、次の offline eval は `status: ok` で `kano.json` と `requirements_packet.json` の artifact path を返すことを確認済み。
@@ -49,6 +49,28 @@ OK
 cd research-runtime
 uv run python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 ```
+
+運用状態を確認する場合:
+
+```powershell
+cd research-runtime
+uv run python -m rand_research.cli metrics
+uv run python -m rand_research.cli resend-pending --limit 10
+uv run python -m rand_research.cli replay-plan --task-id <task-id>
+uv run python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format csv
+uv run python -m rand_research.cli tracker-review --path runs/<run_id>/downstream_handoff.json
+uv run python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstream_handoff.json
+```
+
+live/search shadow pilot を明示的に有効化する場合:
+
+```powershell
+cd research-runtime
+$env:RAND_KANO_SHADOW_SEARCH = "1"
+uv run python -m rand_research.cli run-once --preset kano_requirements_hybrid --max-items 12
+```
+
+この live/search run は shadow / pilot 用であり、通常検収の正本にはしない。
 
 ## 5. 次の再開手順
 

@@ -43,6 +43,9 @@ KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mod
 | AC-K12 | Eval gate semantics | `status=ok` は runtime 実行成功、`gate_summary.overall_assessment` は要件監査判定として分離されている。`no_go` 要件が 1 件でもある audit fixture では overall が `no_go` になる |
 | AC-K13 | Promotion gate | `requirements_packet` 昇格には confidence 閾値、安全 field、証拠 tier、Kano type の条件があり、低 confidence / `questionable` / 証拠不足候補を昇格しない |
 | AC-K14 | Golden Eval | discovery / audit の fixture に対して promoted requirements、verdict distribution、overall assessment を golden 期待値として検証する |
+| AC-K15 | Shadow search | `kano_shadow_search` は既定無効で、`RAND_KANO_SHADOW_SEARCH=1` の場合だけ live/search evidence を収集する |
+| AC-K16 | Downstream handoff | KanoMode run が `downstream_handoff.json` を保存し、Task Seed / manual BB / code-to-gate / tracker dry-run issue を含む |
+| AC-K17 | Operations metrics | `metrics`, `resend-pending`, `replay-plan` CLI が state / runs から運用情報を返す |
 
 ## 3. 検証コマンド
 
@@ -53,6 +56,11 @@ python -m rand_research.cli heartbeat --dry-run --max-items 2
 python -m rand_research.cli env-check
 python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5
+python -m rand_research.cli metrics
+python -m rand_research.cli resend-pending --limit 10
+python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format json
+python -m rand_research.cli tracker-review --path runs/<run_id>/downstream_handoff.json
+python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstream_handoff.json
 ```
 
 macOS / Linux runtime 入口:

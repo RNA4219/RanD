@@ -12,6 +12,7 @@
   - JST 23:00 に `paper_arxiv_ai_recent` を起動する schedule flow
 - `research-heartbeat.yaml`
   - event/manual 起点で preset を補完し、runtime 実行と stuck task 監視を行う flow
+  - runtime の `metrics`, `resend-pending`, `replay-plan` を呼び、`operations_summary.json` を notifier webhook へ渡す
 
 ## 公開設定 / example / local 設定
 
@@ -72,6 +73,7 @@ max_items: 12
 - `pulse-kestra` や外部 webhook から `research-runtime` を呼べるようにする
 - `report.json` と `state_context.json` を Kestra 側の outputFiles に残す
 - `research-runtime` 側の taskstate / memx / tracker 連携を Kestra 実行でも利用する
+- `operations-state.json` の pending notification、stuck task replay plan、運用 metrics を heartbeat の output として残す
 
 ## 読み方のポイント
 

@@ -10,9 +10,9 @@ next_review_due: 2026-06-09
 
 ## 1. 目的
 
-KanoMode の discovery / audit 両モードについて、コード実装へ進む前に必要な文書上の判断、採用条件、未解決事項を整理する。
+KanoMode の discovery / audit 両モードについて、実装済みの fixture-based gate から live/search pilot と downstream handoff pilot へ進むための判断、採用条件、未解決事項を整理する。
 
-この文書は実装指示ではない。`research-runtime/src/**`、preset、prompt、test、lockfile はユーザー確認なしに変更しない。
+この文書は現状整理であり、live 検索や tracker 実送信を通常検収の正本にしない。`research-runtime/src/**` を変更する場合は、fixture / unit test で再現性を維持する。
 
 ## 2. 現在地
 
@@ -20,11 +20,12 @@ KanoMode の discovery / audit 両モードについて、コード実装へ進�
 | --- | --- | --- |
 | discovery mode 要件 | 作成済み | [requirements_kano_mode.md](requirements_kano_mode.md) |
 | discovery mode 仕様 | 作成済み | [specification_kano_mode.md](specification_kano_mode.md) |
-| discovery mode 先行コード差分 | 証跡として存在。正式採用未判断 | [kano_mode_handoff.md](kano_mode_handoff.md) |
+| discovery mode 実装 | 実装済み | `kano_requirements_hybrid`, `kano_requirements_offline_eval` |
 | audit mode 要件 | 作成済み | [requirements_kano_mode.md](requirements_kano_mode.md) |
 | audit mode 仕様 | 作成済み | [specification_kano_mode.md](specification_kano_mode.md) |
-| audit mode sample | 仕様理解用 sample 作成済み。実装 fixture ではない | [examples/requirements_audit_packet.sample.json](examples/requirements_audit_packet.sample.json) |
-| audit mode 実装 | 未着手 | [tasks/TASK-20260526-05-kano-audit-mode.md](tasks/TASK-20260526-05-kano-audit-mode.md) |
+| audit mode 実装 | 実装済み | `kano_requirements_audit`, `tests/fixtures/audit_evidence.json` |
+| shadow search | 実装済み。既定無効 | `kano_shadow_search`, `RAND_KANO_SHADOW_SEARCH` |
+| downstream handoff | 実装済み。dry-run artifact | `downstream_handoff.json` |
 
 ## 3. 契約の分離
 
@@ -59,38 +60,36 @@ Audit mode は既存要件定義を監査する。
 - `code-to-gate`: implementation_alignment / risk / release readiness
 - `workflow-cookbook`: audit Task Seed / Evidence / Acceptance
 
-## 4. 実装へ進む前の判断表
+## 4. Pilot へ進む前の判断表
 
 | 判断 | 推奨 | 理由 |
 | --- | --- | --- |
-| discovery mode 先行コード差分を正式採用するか | 保留 | まず先行差分レビュー観点で確認する |
-| `uv.lock` を採用するか | 保留 | Windows `tzdata` 対応のため生成されたが、repo 方針確認が必要 |
-| audit sample を実装 fixture に昇格するか | 保留 | 現在は仕様理解用 sample。fixture 化には schema / test 方針が必要 |
-| audit preset / test を追加するか | 保留 | コード実装扱いになるためユーザー確認が必要 |
-| Requirement Definition Gate ロジックを実装するか | 保留 | 判定責務を RanD / manual-bb / code-to-gate のどこに置くか確認が必要 |
+| live/search shadow を pilot で有効化するか | 条件付き Go | `RAND_KANO_SHADOW_SEARCH=1` の明示時だけ有効化し、fixture gate と分離する |
+| live evidence を requirements 昇格へ使うか | 保留 | 人手 precision 評価なしでは検索ノイズが混ざる |
+| tracker dry-run issue を実送信へ進めるか | 保留 | tracker SaaS 認証は out of scope。まず dry-run payload をレビューする |
+| downstream handoff を Task Seed ファイル生成へ進めるか | 条件付き Go | `generate-task-seeds` は既定 dry-run。`--write` の前に内容を確認する |
+| operations outbox を Misskey 実送信へ接続するか | 条件付き Go | heartbeat flow は operations summary を notifier webhook へ渡す。実送信判断は pulse-kestra 側で行う |
 
 ## 5. 文書だけで進めてよい作業
 
-- `requirements_audit_packet.json` sample の説明追加
-- discovery / audit の契約差分の明文化
-- Task Seed の粒度整理
-- Acceptance Record の draft 方針整理
-- gate verdict の手動判定手順の文章化
+- `shadow-eval-template` の出力を使った人手評価シート運用
+- `tracker-review` の出力を使った dry-run issue payload レビュー
+- downstream handoff の採択 / 不採択ログ様式整理
+- operations state の運用手順追記
 
 ## 6. ユーザー確認が必要な作業
 
-- `research-runtime/src/**` の修正
-- audit preset の追加
-- audit fixture の追加
-- audit test の追加
-- sample JSON の fixture 昇格
-- `uv.lock` の採用
-- 先行コード差分の revert
+- live search を常時有効化すること
+- notification outbox を Misskey 実送信へ接続すること
+- tracker dry-run issue を実 tracker へ送信すること
+- downstream handoff から repo 内 Task Seed ファイルを自動生成すること
+- `uv.lock` の採用方針を変えること
 
 ## 7. 次の推奨順
 
-1. discovery mode 先行コード差分のレビュー観点を使い、正式採用可否を判断する。
-2. audit sample を fixture に昇格するか判断する。
-3. audit preset / test を追加するか判断する。
-4. Requirement Definition Gate の実装責務を RanD / manual-bb / code-to-gate のどこに置くか決める。
-5. 実装へ進む場合は、Task Seed を実装 PR 単位に切る。
+1. `kano_requirements_offline_eval` / `kano_requirements_audit` を通常 gate として維持する。
+2. `RAND_KANO_SHADOW_SEARCH=1` で少数テーマの shadow run を行い、`shadow-eval-template` で evidence precision を人手評価する。
+3. `tracker-review` で dry-run issue を `ready / hold / reject` 観点で確認する。
+4. `generate-task-seeds` の dry-run 出力を確認し、必要なものだけ `--write` で draft 化する。
+5. `metrics`, `resend-pending`, `replay-plan` の出力を pulse-kestra 側の `operations_summary.json` と照合する。
+6. 実送信や自動ファイル生成に進む場合は、別 Task Seed と Acceptance Record を作る。

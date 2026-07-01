@@ -210,11 +210,13 @@ class IntegrationsTests(unittest.TestCase):
                     'run-1',
                     'paper_arxiv_ai_recent',
                     [item],
-                    {'results': [{'decision': {'verdict': 'go'}, 'next_step': {'recommended_action': 'probe'}}]},
+                    {'results': [{'run': {'request_id': 'paper-1'}, 'decision': {'verdict': 'go'}, 'next_step': {'recommended_action': 'probe'}}]},
                 )
 
             self.assertEqual(memx_entry['entry_id'], 'memx-run-1')
             self.assertEqual(tracker_event['sync_id'], 'sync-run-1')
+            self.assertEqual(tracker_event['dry_run_issues'][0]['status'], 'dry_run')
+            self.assertIn('gate:go', tracker_event['dry_run_issues'][0]['labels'])
             self.assertEqual(atomic_write.call_count, 2)
             self.assertEqual(atomic_write.call_args_list[0].args[0], root / 'memx.json')
             self.assertEqual(atomic_write.call_args_list[1].args[0], root / 'tracker.json')

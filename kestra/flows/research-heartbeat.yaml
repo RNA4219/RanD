@@ -157,20 +157,6 @@ tasks:
 
       print(f"Research completed: {len([r for r in results if r['success']])}/{len(results)} successful")
 
-  - id: post-to-misskey
-    type: io.kestra.plugin.scripts.http.Request
-    uri: "{{ vars.kestra_base_url }}/api/v1/main/executions/webhook/pulse/notifier-resend/{{ secret('RAND_RESEARCH_WEBHOOK_KEY') }}"
-    method: POST
-    headers:
-      Content-Type: application/json
-    body: |
-      {
-        "event": "rand.heartbeat",
-        "source": "research-heartbeat",
-        "results": {{ outputs.run-research.outputFiles['research_results.json'] }},
-        "timestamp": {{ outputs.select-preset.outputFiles['heartbeat_config.json'] | json(data='heartbeat_time') }}
-      }
-
   - id: check-stuck-tasks
     type: io.kestra.plugin.scripts.python.Script
     outputFiles:
@@ -199,7 +185,8 @@ tasks:
                           task_time = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
                           if task_time < stuck_threshold:
                               stuck_tasks.append({
-                                  "task_id": task.get("run_id"),
+                                  "task_id": task.get("task_id"),
+                                  "trace_id": task.get("run_id"),
                                   "preset": task.get("preset"),
                                   "status": task.get("status"),
                                   "updated_at": updated_at,
@@ -212,12 +199,80 @@ tasks:
 
       print(f"Found {len(stuck_tasks)} stuck tasks")
 
+  - id: collect-operations
+    type: io.kestra.plugin.scripts.python.Script
+    outputFiles:
+      - operations_summary.json
+    script: |
+      import json
+      import os
+      import subprocess
+      import sys
+      from pathlib import Path
+
+      runtime_root = Path(r"{{ vars.runtime_root }}")
+      env = os.environ.copy()
+      env["PYTHONPATH"] = str(runtime_root / "src")
+
+      def run_cli(*args):
+          result = subprocess.run(
+              [sys.executable, "-m", "rand_research.cli", *args],
+              cwd=runtime_root,
+              env=env,
+              capture_output=True,
+              text=True,
+              timeout=120,
+          )
+          if result.returncode != 0:
+              return {"status": "failed", "error": result.stderr}
+          return json.loads(result.stdout)
+
+      with open("{{ outputs.check-stuck-tasks.outputFiles['stuck_tasks.json'] }}", encoding="utf-8") as f:
+          stuck_tasks = json.load(f)
+
+      replay_plans = []
+      for task in stuck_tasks:
+          trace_id = task.get("trace_id")
+          task_id = task.get("task_id")
+          if trace_id:
+              replay_plans.append(run_cli("replay-plan", "--trace-id", trace_id))
+          elif task_id:
+              replay_plans.append(run_cli("replay-plan", "--task-id", task_id))
+
+      output = {
+          "metrics": run_cli("metrics"),
+          "pending_resend": run_cli("resend-pending", "--limit", "10"),
+          "stuck_tasks": stuck_tasks,
+          "replay_plans": replay_plans,
+      }
+
+      with open("{{ outputDir }}/operations_summary.json", "w", encoding="utf-8") as f:
+          json.dump(output, f, ensure_ascii=False, indent=2)
+
+      print(json.dumps(output, ensure_ascii=False))
+
+  - id: post-to-misskey
+    type: io.kestra.plugin.scripts.http.Request
+    uri: "{{ vars.kestra_base_url }}/api/v1/main/executions/webhook/pulse/notifier-resend/{{ secret('RAND_RESEARCH_WEBHOOK_KEY') }}"
+    method: POST
+    headers:
+      Content-Type: application/json
+    body: |
+      {
+        "event": "rand.heartbeat",
+        "source": "research-heartbeat",
+        "results": {{ outputs.run-research.outputFiles['research_results.json'] }},
+        "operations": {{ outputs.collect-operations.outputFiles['operations_summary.json'] }},
+        "timestamp": {{ outputs.select-preset.outputFiles['heartbeat_config.json'] | json(data='heartbeat_time') }}
+      }
+
   - id: summary-log
     type: io.kestra.plugin.core.log.Log
     message: |
       RanD Heartbeat cycle completed:
       - Research results: {{ outputs.run-research.outputFiles['research_results.json'] }}
       - Stuck tasks: {{ outputs.check-stuck-tasks.outputFiles['stuck_tasks.json'] }}
+      - Operations: {{ outputs.collect-operations.outputFiles['operations_summary.json'] }}
 
 errors:
   - id: error-handler

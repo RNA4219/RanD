@@ -141,6 +141,8 @@ Audit mode では、既存要件定義を監査対象として読み、各要件
 
 KanoMode の受け入れでは live web search を必須にしません。再現性のある fixture / cached corpus による offline eval を正本にし、live search は pilot / shadow eval として扱います。
 
+`kano_requirements_hybrid` には live/search pilot 用の `kano_shadow_search` adapter があります。既定では無効で、`RAND_KANO_SHADOW_SEARCH=1` を設定した場合だけ設定済み検索 URL から shadow evidence を収集します。収集結果は通常の `kano.json` / `requirements_packet.json` へ混ぜられますが、検索順位や SEO ノイズを含むため、通常受け入れの正本にはしません。
+
 KanoMode discovery preset では、上記に加えて次を保存します。
 
 - `kano.json`
@@ -155,6 +157,26 @@ KanoMode audit preset では、上記に加えて次を保存します。
 - `requirements_audit_packet.json`
   - 既存要件ごとの `testability`, `implementation_alignment`, `issues`, `suggested_action`, `gate_verdict`
   - `gate_summary` に `go / conditional_go / no_go` の分布と overall assessment
+
+KanoMode の packet 生成時は追加で `downstream_handoff.json` を保存します。これは `requirements_packet.json` または `requirements_audit_packet.json` を、`workflow-cookbook` の Task Seed、`manual-bb-test-harness` のテスト観点、`code-to-gate` の phase contract、`tracker-bridge-materials` の dry-run issue へ分解した handoff artifact です。実送信は行わず、pilot / review 用の dry-run 契約として扱います。
+
+## Operations CLI
+
+通知・再送・重複抑止・replay は `state/operations-state.json` に記録します。runtime は直接 Misskey へ送信せず、pending outbox と replay plan を残します。
+
+```powershell
+python -m rand_research.cli metrics
+python -m rand_research.cli resend-pending --limit 10
+python -m rand_research.cli replay-plan --task-id <task-id>
+python -m rand_research.cli mark-notification --notification-id <id> --status sent
+python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format csv
+python -m rand_research.cli tracker-review --path runs/<run_id>/downstream_handoff.json
+python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstream_handoff.json
+```
+
+`metrics` は `runs/` と `state/` から、日次 run 数、`ok / degraded / failed` 件数、`state_write_failed`、未通知数、replay 件数、duplicate suppression 件数などを集計します。
+
+`shadow-eval-template` は live/search shadow evidence を人手評価するための JSON/CSV テンプレを出力します。`tracker-review` は tracker dry-run issue に `ready_to_send=false` のレビュー台帳を付けます。`generate-task-seeds` は既定 dry-run で Task Seed draft を返し、ファイルへ書く場合だけ `--write` を付けます。
 
 ## 最小観測点
 

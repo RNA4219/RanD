@@ -111,6 +111,8 @@ KanoMode preset は少なくとも次を宣言できる。
 
 offline eval は live web search と live LLM 実行に依存しない。これにより、要件 / 仕様 / artifact 契約の回帰確認を安定させる。
 
+`kano_requirements_hybrid` は `kano_shadow_search` adapter を持つ。adapter は `RAND_KANO_SHADOW_SEARCH=1` のときだけ有効になり、検索 URL から取得した link evidence を `source_tier=user_signal` または `comparison` として保存する。未設定時は 0 件を返し、fixture / query seed の再現性を壊さない。live shadow evidence は検索順位、SEO、locale、時点差のバイアスを持つため、通常 acceptance の正本にはしない。
+
 ### 5.3 query family
 
 query family は Kano 参照の品質信号を拾うための検索意図である。狩野モデルの質問票を実施する代わりに、ネット上で自然発生している反応を evidence として集める。
@@ -207,6 +209,7 @@ KanoMode は既存 8 artifact に加えて、次を追加できる。
 - `kano.json`
 - `requirements_packet.json`
 - `requirements_audit_packet.json`
+- `downstream_handoff.json`
 
 既存 8 artifact:
 
@@ -319,7 +322,33 @@ Sample artifact: [examples/requirements_audit_packet.sample.json](examples/requi
 | `suggested_action` | 推奨アクション |
 | `gate_verdict` | `go`, `conditional_go`, `no_go` |
 
-### 6.6 昇格ルール
+### 6.6 `downstream_handoff.json`
+
+`downstream_handoff.json` は、KanoMode の主契約を downstream OSS が消費しやすい形へ分解する dry-run artifact である。
+
+必須 root fields:
+
+| field | 内容 |
+| --- | --- |
+| `schema_version` | artifact schema version |
+| `handoff_id` | handoff ID |
+| `mode` | `requirements_packet` または `requirements_audit_packet` |
+| `workflow_cookbook` | Task Seed 候補 |
+| `manual_bb_test_harness` | 手動 BB 観点 seed |
+| `code_to_gate` | phase contract / implementation alignment seed |
+| `tracker_bridge` | tracker dry-run issue |
+| `status` | `dry_run` |
+| `error` | エラー。正常時は null |
+
+補助 CLI:
+
+| command | 内容 |
+| --- | --- |
+| `shadow-eval-template` | `kano.json` から live/search shadow evidence の人手評価 JSON/CSV を生成する |
+| `tracker-review` | `downstream_handoff.json` または `tracker_sync.json` の dry-run issue をレビュー台帳へ変換する |
+| `generate-task-seeds` | `downstream_handoff.json` から Task Seed draft を生成する。既定は dry-run で、`--write` 時だけファイルを書く |
+
+### 6.7 昇格ルール
 
 Kano candidate は、次を満たす場合だけ `requirements_packet.json` へ昇格できる。
 

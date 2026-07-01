@@ -179,6 +179,13 @@ KanoMode preset では、固定 artifact に加えて次を保存する。
 
 - `kano.json`
 - `requirements_packet.json`
+- `downstream_handoff.json`
+
+KanoMode audit preset では、固定 artifact に加えて次を保存する。
+
+- `kano.json`
+- `requirements_audit_packet.json`
+- `downstream_handoff.json`
 
 ### 5.2 schema version
 
@@ -202,6 +209,9 @@ KanoMode preset では、固定 artifact に加えて次を保存する。
   - 必須: `schema_version`, `packet_id`, `derived_from`, `product_context`, `requirements`, `release_readiness_prelude`
   - 各 requirement は `requirement_id`, `statement`, `kano_type`, `priority`, `confidence`, `evidence_refs`, `kpi`, `acceptance_criteria`, `risks`, `downstream_hooks`, `gate_policy` を持つ
   - `confidence`, `bias_note`, `kill_condition` が欠ける candidate は packet に昇格しない
+- `downstream_handoff.json`
+  - 必須: `schema_version`, `handoff_id`, `mode`, `workflow_cookbook`, `manual_bb_test_harness`, `code_to_gate`, `tracker_bridge`, `status`, `error`
+  - `status` は実送信前の `dry_run` を基本とする
 
 ### 5.3 compatibility policy
 

@@ -75,6 +75,8 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 | FR-R09 | Insight / Gate は外部 API URL が設定されている場合、最初に HTTP API を呼び出すこと | `RAND_INSIGHT_API_URL`, `RAND_GATE_API_URL` を使う unit test で確認できる |
 | FR-R10 | 外部 API が失敗した場合、設定済みのサブエージェントコマンドへ同一 payload を stdin JSON で渡せること | `RAND_INSIGHT_SUBAGENT_CMD`, `RAND_GATE_SUBAGENT_CMD` を使う unit test で確認できる |
 | FR-R11 | API / サブエージェント / 直接 import / deterministic fallback の順で段階的に劣化し、最終 fallback 利用時は `degraded` として観測できること | artifact の `mode`, `status`, `error` で確認できる |
+| FR-R12 | notify / resend / replay / dedupe は operations state に dry-run 記録できること | `operations-state.json` と CLI で確認できる |
+| FR-R13 | tracker sync は実送信前に dry-run issue payload を生成できること | `tracker_sync.json.events[*].dry_run_issues` で確認できる |
 
 ### 4.3 Artifact / Schema
 
@@ -118,6 +120,8 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 - AC-09: 最小観測点を後から集計できる field / log 契約が定義されている
 - AC-10: macOS / Linux 向けに `*.sh` の実行入口があり、runtime は PowerShell 非依存で起動できる
 - AC-11: Insight / Gate の外部 API 優先とサブエージェント fallback が unit test で確認できる
+- AC-12: `metrics`, `resend-pending`, `replay-plan` CLI が運用 state を返す
+- AC-13: tracker sync payload に dry-run issue が含まれる
 
 ## 7. 拡張要件
 

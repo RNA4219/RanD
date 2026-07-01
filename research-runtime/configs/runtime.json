@@ -12,5 +12,6 @@
   "save_root": "runs",
   "state_path": "state/taskstate.json",
   "memory_log_path": "state/memx-journal.json",
-  "tracker_sync_path": "state/tracker-sync.json"
+  "tracker_sync_path": "state/tracker-sync.json",
+  "operations_state_path": "state/operations-state.json"
 }

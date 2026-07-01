@@ -121,6 +121,10 @@ KanoMode preset では、通常の 8 artifact に加えて次を保存します�
   - discovery mode の主契約です。requirements、KPI、acceptance、risks、downstream_hooks、gate_policy を保持します。
 - `requirements_audit_packet.json`
   - audit mode の主契約です。既存要件ごとの Kano参照の再分類、testability、implementation_alignment、issues、suggested_action、gate verdict、gate_summary を保持します。
+- `downstream_handoff.json`
+  - discovery / audit packet を Task Seed、manual BB 観点、code-to-gate contract、tracker dry-run issue へ分解した pilot 用 handoff artifact です。実送信は行いません。
+
+`kano_requirements_hybrid` には live/search shadow adapter があります。既定では無効で、`RAND_KANO_SHADOW_SEARCH=1` を設定した場合だけ検索 URL から evidence を収集します。live evidence は shadow / pilot 用であり、通常検収は fixture / cached corpus を正本にします。
 
 KanoMode の詳細な要件・仕様・検収記録は次を正本にします。
 
@@ -247,6 +251,17 @@ python -m rand_research.cli heartbeat --dry-run --max-items 5
 ```powershell
 cd research-runtime
 .\scripts\env-check.ps1
+```
+
+運用メトリクスと pending 通知を見る:
+
+```powershell
+cd research-runtime
+python -m rand_research.cli metrics
+python -m rand_research.cli resend-pending --limit 10
+python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format csv
+python -m rand_research.cli tracker-review --path runs/<run_id>/downstream_handoff.json
+python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstream_handoff.json
 ```
 
 KanoMode の offline eval を回す:

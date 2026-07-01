@@ -72,6 +72,8 @@ def collect_source(source: dict[str, Any], user_agent: str, timeout_seconds: int
         return parse_generic_links(source, html_text, max_items)
     if fetcher == "kano_query_seed":
         return build_kano_query_seed_items(source, max_items)
+    if fetcher == "kano_shadow_search":
+        return collect_kano_shadow_search(source, user_agent, timeout_seconds, max_items)
     if fetcher == "kano_fixture_json":
         fixture_path = workspace_root() / source["fixture_path"]
         return parse_kano_fixture_json(source, fixture_path, max_items)
@@ -227,6 +229,105 @@ def build_kano_query_seed_items(source: dict[str, Any], max_items: int) -> list[
             if len(items) >= max_items:
                 return items
     return items
+
+
+def collect_kano_shadow_search(
+    source: dict[str, Any],
+    user_agent: str,
+    timeout_seconds: int,
+    max_items: int,
+) -> list[NormalizedItem]:
+    """Collect optional live/search shadow evidence without making CI depend on it.
+
+    The adapter is disabled unless the configured env flag is truthy. When enabled,
+    it fetches explicitly configured search pages and turns matching links into
+    Kano evidence candidates. This keeps live search as a pilot path while fixture
+    eval remains the acceptance source of truth.
+    """
+    import os
+
+    enabled_env = source.get("enabled_env", "RAND_KANO_SHADOW_SEARCH")
+    if str(os.environ.get(enabled_env, "")).lower() not in {"1", "true", "yes", "on"}:
+        return []
+
+    urls = source.get("urls", [])
+    if not urls:
+        urls = _shadow_search_urls_from_families(source)
+
+    items: list[NormalizedItem] = []
+    for url_config in urls:
+        if len(items) >= max_items:
+            break
+        if isinstance(url_config, str):
+            url = url_config
+            metadata: dict[str, Any] = {}
+        else:
+            url = url_config["url"]
+            metadata = dict(url_config.get("metadata", {}))
+
+        html_text = fetch_text(url, user_agent, timeout_seconds)
+        local_source = {
+            "name": source["name"],
+            "kind": "kano_evidence",
+            "url": url,
+            "link_pattern": source.get("link_pattern"),
+        }
+        for item in parse_generic_links(local_source, html_text, max_items - len(items)):
+            family = metadata.get("source_type", source.get("source_type", "shadow_search"))
+            candidate_id = metadata.get("kano_candidate_id") or _slugify(f"{family}-{item.title}")[:48]
+            item.kind = "kano_evidence"
+            item.source_name = source["name"]
+            item.tags = ["kano", "shadow_search", family, metadata.get("locale", "und")]
+            item.metadata.update(
+                {
+                    "source_type": family,
+                    "source_tier": metadata.get("source_tier", "user_signal"),
+                    "locale": metadata.get("locale", "und"),
+                    "kano_type": metadata.get("kano_type", "questionable"),
+                    "kano_candidate_id": candidate_id,
+                    "requirement_statement": metadata.get("requirement_statement", item.title),
+                    "confidence": metadata.get("confidence", 0.55),
+                    "bias_note": metadata.get("bias_note", "Live shadow search evidence may include ranking and SEO bias."),
+                    "kill_condition": metadata.get("kill_condition", "Human review rejects the live evidence as irrelevant or stale."),
+                    "freshness_days": metadata.get("freshness_days"),
+                    "shadow_search_url": url,
+                }
+            )
+            item.evidence.append(f"Shadow search source: {url}")
+            items.append(item)
+            if len(items) >= max_items:
+                break
+    return items
+
+
+def _shadow_search_urls_from_families(source: dict[str, Any]) -> list[dict[str, Any]]:
+    endpoint_template = source.get("search_endpoint_template")
+    if not endpoint_template:
+        return []
+    topic = source.get("topic", "RanD KanoMode")
+    locales = source.get("locales", ["ja-JP", "en-US"])
+    urls: list[dict[str, Any]] = []
+    for family in source.get("query_families", []):
+        for locale in locales:
+            template = family.get("templates", {}).get(locale) or family.get("template") or "{topic} {family}"
+            query = template.format(topic=topic, family=family.get("name", "kano"))
+            urls.append(
+                {
+                    "url": endpoint_template.format(query=urllib.parse.quote_plus(query), locale=locale),
+                    "metadata": {
+                        "source_type": family.get("name", "shadow_search"),
+                        "source_tier": family.get("source_tier", "user_signal"),
+                        "locale": locale,
+                        "kano_type": family.get("kano_type", "questionable"),
+                        "kano_candidate_id": family.get("candidate_id"),
+                        "requirement_statement": family.get("requirement_statement"),
+                        "confidence": family.get("confidence", 0.55),
+                        "bias_note": family.get("bias_note"),
+                        "kill_condition": family.get("kill_condition"),
+                    },
+                }
+            )
+    return urls
 
 
 def parse_kano_fixture_json(source: dict[str, Any], fixture_path: Path, max_items: int) -> list[NormalizedItem]:

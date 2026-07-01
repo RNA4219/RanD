@@ -52,12 +52,42 @@ def write_tracker_sync(path: Path, run_id: str, preset: str, items: list[Normali
             }
             for result in gate_payload.get("results", [])
         ],
+        "dry_run_issues": _build_dry_run_issues(items, gate_payload),
         "status": "ok",
         "error": None,
     }
     payload["events"].append(event)
     _write_json(path, payload)
     return event
+
+
+def _build_dry_run_issues(items: list[NormalizedItem], gate_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    verdict_by_id = {
+        result.get("run", {}).get("request_id"): result.get("decision", {}).get("verdict")
+        for result in gate_payload.get("results", [])
+    }
+    issues: list[dict[str, Any]] = []
+    for item in items[:5]:
+        verdict = verdict_by_id.get(item.id, "unreviewed")
+        issues.append(
+            {
+                "title": f"[RanD] {item.title}",
+                "body": "\n".join(
+                    [
+                        f"Source: {item.url}",
+                        f"Kind: {item.kind}",
+                        f"Priority: {item.priority}",
+                        f"Gate verdict: {verdict}",
+                        "",
+                        item.summary or item.title,
+                    ]
+                ).strip(),
+                "labels": ["rand", f"preset-source:{item.source_name}", f"gate:{verdict}"],
+                "source_item_id": item.id,
+                "status": "dry_run",
+            }
+        )
+    return issues
 
 
 def _load_log(path: Path, key: str) -> dict[str, Any]:

@@ -22,6 +22,14 @@ class KestraFlowContractTests(unittest.TestCase):
         self.assertIn('configs" / "heartbeat.json"', heartbeat)
         self.assertIn('from zoneinfo import ZoneInfo', heartbeat)
 
+    def test_heartbeat_flow_collects_operations_for_resend_and_replay(self) -> None:
+        heartbeat = (self.root / "research-heartbeat.yaml").read_text(encoding="utf-8")
+        self.assertIn("id: collect-operations", heartbeat)
+        self.assertIn('"resend-pending"', heartbeat)
+        self.assertIn('"replay-plan"', heartbeat)
+        self.assertIn("operations_summary.json", heartbeat)
+        self.assertIn('"operations": {{ outputs.collect-operations.outputFiles', heartbeat)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -88,6 +88,50 @@
           }
         }
       ]
+    },
+    {
+      "name": "kano_shadow_search",
+      "kind": "kano_evidence",
+      "fetcher": "kano_shadow_search",
+      "enabled_env": "RAND_KANO_SHADOW_SEARCH",
+      "topic": "RanD KanoMode requirements discovery",
+      "locales": [
+        "ja-JP",
+        "en-US"
+      ],
+      "priority": 2,
+      "source_type": "shadow_search",
+      "search_endpoint_template": "https://www.google.com/search?q={query}&hl={locale}",
+      "query_families": [
+        {
+          "name": "complaints",
+          "candidate_id": "setup-and-evidence-must-be",
+          "kano_type": "must_be",
+          "source_tier": "user_signal",
+          "confidence": 0.7,
+          "requirement_statement": "KanoMode は証拠不足や検索失敗を明示し、要求パケットを過信させてはならない。",
+          "bias_note": "live complaint search はネガティブ意見と検索順位バイアスを含む。",
+          "kill_condition": "shadow eval で上位 evidence が要求と無関係と判定された場合は昇格しない。",
+          "templates": {
+            "ja-JP": "{topic} 不満 困る 使いにくい 必須",
+            "en-US": "{topic} complaints frustrating must have deal breaker"
+          }
+        },
+        {
+          "name": "compare",
+          "candidate_id": "competitive-baseline-performance",
+          "kano_type": "performance",
+          "source_tier": "comparison",
+          "confidence": 0.7,
+          "requirement_statement": "KanoMode は競合や既存 workflow と比較できる証拠を保持するべきである。",
+          "bias_note": "live comparison search は SEO ノイズや前提違いを含みやすい。",
+          "kill_condition": "比較証拠が要求判断に寄与しないことが pilot で確認された場合は補助情報に降格する。",
+          "templates": {
+            "ja-JP": "{topic} 比較 乗り換え 競合 workflow",
+            "en-US": "{topic} compare alternative workflow switched from"
+          }
+        }
+      ]
     }
   ]
 }

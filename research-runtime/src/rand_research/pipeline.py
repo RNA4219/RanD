@@ -6,10 +6,12 @@ from typing import Any
 from uuid import uuid4
 
 from rand_research.config import load_preset, load_runtime_config
+from rand_research.downstream import build_downstream_handoff
 from rand_research.fetchers import collect_source
 from rand_research.integrations import run_gate, run_insight, write_memx_journal, write_tracker_sync
 from rand_research.kano import build_audit_artifacts, build_kano_artifacts
 from rand_research.models import ExecutionContext, NormalizedItem, RunMeta
+from rand_research.operations import record_notification_outbox
 from rand_research.paths import workspace_root
 from rand_research.reports import save_run_outputs
 from rand_research.state_store import build_execution_context, upsert_task_record
@@ -24,6 +26,7 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
     state_path = workspace_root() / runtime["state_path"]
     memory_path = workspace_root() / runtime["memory_log_path"]
     tracker_path = workspace_root() / runtime["tracker_sync_path"]
+    operations_path = workspace_root() / runtime.get("operations_state_path", "state/operations-state.json")
 
     dependency_health: dict[str, str] = {
         "sources": "ok",
@@ -146,6 +149,9 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
         extra_payloads = build_kano_artifacts(items, preset, run_id)
     elif preset.get("mode") == "kano_audit":
         extra_payloads = build_audit_artifacts(items, preset, run_id)
+    downstream_handoff = build_downstream_handoff(extra_payloads, run_id) if extra_payloads else None
+    if downstream_handoff:
+        extra_payloads["downstream_handoff"] = downstream_handoff
 
     meta.finish()
     artifact_paths = _expected_artifacts(run_dir)
@@ -249,12 +255,40 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
             "error": str(exc),
         }
         artifacts = artifact_paths
+        operations_record = {
+            "schema_version": meta.schema_version,
+            "notification_id": f"note-{run_id}",
+            "run_id": run_id,
+            "preset": preset_name,
+            "status": "failed",
+            "error": "report_save_failed",
+        }
+
+    if final_status != "failed" or dependency_health.get("report") == "ok":
+        try:
+            operations_record = record_notification_outbox(
+                operations_path,
+                run_id,
+                preset_name,
+                report_payload,
+                artifacts,
+            )
+        except Exception as exc:
+            operations_record = {
+                "schema_version": meta.schema_version,
+                "notification_id": f"note-{run_id}",
+                "run_id": run_id,
+                "preset": preset_name,
+                "status": "failed",
+                "error": f"operations_record_failed: {exc}",
+            }
 
     return {
         "meta": meta.to_dict() | {"status": final_status, "status_reason": _unique(status_reasons)},
         "report": report_payload,
         "insight": insight_payload,
         "gate": gate_payload,
+        "operations": operations_record,
     }
 
 

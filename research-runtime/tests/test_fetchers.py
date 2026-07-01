@@ -1,7 +1,9 @@
 import unittest
 from pathlib import Path
 
-from rand_research.fetchers import build_kano_query_seed_items, parse_arxiv_recent_html, parse_generic_links, parse_kano_fixture_json, parse_rss_items
+from unittest.mock import patch
+
+from rand_research.fetchers import build_kano_query_seed_items, collect_kano_shadow_search, parse_arxiv_recent_html, parse_generic_links, parse_kano_fixture_json, parse_rss_items
 
 
 FIXTURE_ROOT = Path(__file__).parent / 'fixtures'
@@ -81,6 +83,37 @@ class FetcherTests(unittest.TestCase):
         self.assertEqual(items[0].metadata["kano_candidate_id"], "setup-and-evidence-must-be")
         self.assertEqual(items[0].metadata["source_tier"], "user_signal")
         self.assertEqual(items[1].metadata["source_tier"], "primary")
+
+    def test_kano_shadow_search_disabled_by_default(self) -> None:
+        items = collect_kano_shadow_search({"name": "shadow"}, "agent", 1, 3)
+        self.assertEqual(items, [])
+
+    def test_kano_shadow_search_collects_live_like_links_when_enabled(self) -> None:
+        html = '<html><body><a href="/review">Useful workflow comparison</a></body></html>'
+        source = {
+            "name": "shadow",
+            "urls": [
+                {
+                    "url": "https://example.com/search?q=rand",
+                    "metadata": {
+                        "source_type": "compare",
+                        "source_tier": "comparison",
+                        "locale": "en-US",
+                        "kano_type": "performance",
+                        "kano_candidate_id": "competitive-baseline-performance",
+                    },
+                }
+            ],
+        }
+
+        with patch.dict("os.environ", {"RAND_KANO_SHADOW_SEARCH": "1"}), patch("rand_research.fetchers.fetch_text", return_value=html):
+            items = collect_kano_shadow_search(source, "agent", 1, 3)
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].kind, "kano_evidence")
+        self.assertEqual(items[0].metadata["source_type"], "compare")
+        self.assertEqual(items[0].metadata["kano_type"], "performance")
+        self.assertEqual(items[0].metadata["kano_candidate_id"], "competitive-baseline-performance")
 
 
 if __name__ == "__main__":
