@@ -167,6 +167,7 @@ KanoMode の packet 生成時は追加で `downstream_handoff.json` を保存し
 通知・再送・重複抑止・replay は `state/operations-state.json` に記録します。runtime は直接 Misskey へ送信せず、pending outbox と replay plan を残します。
 
 ```powershell
+python -m rand_research.cli pilot-status --summary-only
 python -m rand_research.cli pilot-status
 python -m rand_research.cli pilot-check
 python -m rand_research.cli outbox-plan
@@ -183,7 +184,7 @@ python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstre
 python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_handoff.json
 ```
 
-`pilot-status` は現在の readiness、pending outbox、latest snapshot/review、次に叩くコマンドをまとめて返します。latest review が latest snapshot を `accept` または `accept_with_review` でカバーしている場合、pending outbox が残っていても `continue_pilot_with_review` を返せます。pilot 運用時はまずこのコマンドで状態を見ます。
+`pilot-status --summary-only` は日次確認向けに `status`, `latest_run_id`, `pending_outbox_count`, `latest_review_decision`, `next_step`, `next_command` を返します。`pilot-status` は現在の readiness、pending outbox、latest snapshot/review、次に叩くコマンドをまとめて返します。latest review が latest snapshot を `accept` または `accept_with_review` でカバーしている場合、pending outbox が残っていても `continue_pilot_with_review` を返せます。
 
 `pilot-check` は latest run、artifact schema、operations state、heartbeat config、metrics をまとめて検査し、`go / degraded / no_go` を返します。`degraded` は pending 通知や最新 run の degraded など、人間レビュー付きなら pilot 継続可能な状態を表します。
 

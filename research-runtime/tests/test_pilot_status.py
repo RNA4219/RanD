@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rand_research.pilot_snapshot import review_pilot_snapshot, write_pilot_snapshot
-from rand_research.pilot_status import build_pilot_status
+from rand_research.pilot_status import build_pilot_status, build_pilot_status_summary
 
 
 class PilotStatusTests(unittest.TestCase):
@@ -71,6 +71,23 @@ class PilotStatusTests(unittest.TestCase):
             self.assertEqual(status["latest_review_decision"], "accept_with_review")
             self.assertNotIn("review_outbox", step_names)
             self.assertEqual(status["next_steps"][0]["name"], "continue_pilot_with_review")
+
+    def test_status_summary_returns_compact_next_action(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._write_valid_run(root)
+            self._write_operations(root, pending=True)
+
+            with patch("rand_research.pilot_health.load_heartbeat_config", return_value=self._heartbeat_config()):
+                result = write_pilot_snapshot(root)
+                review_pilot_snapshot(Path(result["path"]), "accept_with_review", "tester")
+                summary = build_pilot_status_summary(root)
+
+            self.assertEqual(summary["status"], "degraded")
+            self.assertEqual(summary["pending_outbox_count"], 1)
+            self.assertEqual(summary["latest_review_decision"], "accept_with_review")
+            self.assertTrue(summary["review_covers_latest_snapshot"])
+            self.assertEqual(summary["next_step"], "continue_pilot_with_review")
 
     def _write_valid_run(self, root: Path) -> None:
         run_id = "20260702-010000-ok"

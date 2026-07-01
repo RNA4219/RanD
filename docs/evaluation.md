@@ -64,6 +64,7 @@ python -m rand_research.cli env-check
 python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5
 python -m rand_research.cli pilot-check
+python -m rand_research.cli pilot-status --summary-only
 python -m rand_research.cli pilot-status
 python -m rand_research.cli outbox-plan
 python -m rand_research.cli pilot-snapshot --dry-run

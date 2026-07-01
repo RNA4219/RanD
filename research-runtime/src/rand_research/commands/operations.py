@@ -9,12 +9,13 @@ from rand_research.metrics import collect_metrics
 from rand_research.operations import build_outbox_plan, mark_notification_attempt, pending_resend_payloads, plan_replay
 from rand_research.pilot_health import evaluate_pilot_readiness
 from rand_research.pilot_snapshot import accept_current_pilot_state, build_pilot_snapshot, review_pilot_snapshot, write_pilot_snapshot
-from rand_research.pilot_status import build_pilot_status
+from rand_research.pilot_status import build_pilot_status, build_pilot_status_summary
 
 
 def register_operations_commands(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     subparsers.add_parser("metrics")
-    subparsers.add_parser("pilot-status")
+    status_parser = subparsers.add_parser("pilot-status")
+    status_parser.add_argument("--summary-only", action="store_true")
     subparsers.add_parser("pilot-check")
 
     replay_parser = subparsers.add_parser("replay-plan")
@@ -56,7 +57,7 @@ def handle_operations_command(args: argparse.Namespace, runtime_root: Path, pars
         print_json(collect_metrics(runtime_root))
         return True
     if args.command == "pilot-status":
-        print_json(build_pilot_status(runtime_root))
+        print_json(build_pilot_status_summary(runtime_root) if args.summary_only else build_pilot_status(runtime_root))
         return True
     if args.command == "pilot-check":
         print_json(evaluate_pilot_readiness(runtime_root))

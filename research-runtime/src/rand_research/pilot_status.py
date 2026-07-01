@@ -32,6 +32,22 @@ def build_pilot_status(runtime_root: Path, outbox_limit: int = 20) -> dict[str, 
     }
 
 
+def build_pilot_status_summary(runtime_root: Path, outbox_limit: int = 20) -> dict[str, Any]:
+    status = build_pilot_status(runtime_root, outbox_limit)
+    next_step = status.get("next_steps", [{}])[0] if status.get("next_steps") else {}
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": status.get("status"),
+        "summary": status.get("summary"),
+        "latest_run_id": status.get("latest_run_id"),
+        "pending_outbox_count": status.get("pending_outbox_count", 0),
+        "latest_review_decision": status.get("latest_review_decision"),
+        "review_covers_latest_snapshot": status.get("review_covers_latest_snapshot", False),
+        "next_step": next_step.get("name"),
+        "next_command": next_step.get("command"),
+    }
+
+
 def _next_steps(
     readiness: dict[str, Any],
     outbox_plan: dict[str, Any],
