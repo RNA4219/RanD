@@ -168,6 +168,7 @@ KanoMode の packet 生成時は追加で `downstream_handoff.json` を保存し
 
 ```powershell
 python -m rand_research.cli pilot-check
+python -m rand_research.cli outbox-plan
 python -m rand_research.cli metrics
 python -m rand_research.cli resend-pending --limit 10
 python -m rand_research.cli replay-plan --task-id <task-id>
@@ -179,6 +180,8 @@ python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_ha
 ```
 
 `pilot-check` は latest run、artifact schema、operations state、heartbeat config、metrics をまとめて検査し、`go / degraded / no_go` を返します。`degraded` は pending 通知や最新 run の degraded など、人間レビュー付きなら pilot 継続可能な状態を表します。
+
+`outbox-plan` は pending / failed notification をレビュー単位に分解し、`send_or_mark_sent`、`confirm_delivery`、`review_failure` の推奨アクションと次に使う `mark-notification` コマンドを返します。状態は書き換えません。
 
 `metrics` は `runs/` と `state/` から、日次 run 数、`ok / degraded / failed` 件数、`state_write_failed`、未通知数、replay 件数、duplicate suppression 件数などを集計します。
 

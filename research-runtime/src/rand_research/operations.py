@@ -115,6 +115,23 @@ def pending_resend_payloads(operations_path: Path, limit: int = 10) -> dict[str,
     }
 
 
+def build_outbox_plan(operations_path: Path, limit: int = 20) -> dict[str, Any]:
+    payload = load_operations_state(operations_path)
+    notifications = [item for item in payload.get("notifications", []) if item.get("status") in {"pending", "failed"}]
+    actions = [_notification_action(item) for item in notifications[:limit]]
+    action_counts: dict[str, int] = {}
+    for action in actions:
+        action_counts[action["recommended_action"]] = action_counts.get(action["recommended_action"], 0) + 1
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "ok",
+        "pending_count": len(notifications),
+        "returned_count": len(actions),
+        "action_counts": action_counts,
+        "actions": actions,
+    }
+
+
 def mark_notification_attempt(
     operations_path: Path,
     notification_id: str,
@@ -132,6 +149,43 @@ def mark_notification_attempt(
         save_operations_state(operations_path, payload)
         return notification
     raise KeyError(f"notification not found: {notification_id}")
+
+
+def _notification_action(notification: dict[str, Any]) -> dict[str, Any]:
+    status = notification.get("status", "unknown")
+    attempts = int(notification.get("attempts", 0) or 0)
+    notification_id = notification.get("notification_id")
+    if status == "failed":
+        recommended_action = "review_failure"
+        reason = notification.get("error") or "notification previously failed"
+    elif attempts > 0:
+        recommended_action = "confirm_delivery"
+        reason = "pending notification already has delivery attempts"
+    else:
+        recommended_action = "send_or_mark_sent"
+        reason = "pending notification has not been attempted"
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "notification_id": notification_id,
+        "run_id": notification.get("run_id"),
+        "preset": notification.get("preset"),
+        "status": status,
+        "attempts": attempts,
+        "recommended_action": recommended_action,
+        "reason": reason,
+        "next_commands": _next_commands(notification_id),
+        "reply_preview": (notification.get("reply_text") or "")[:240],
+        "artifacts": notification.get("artifacts", {}),
+    }
+
+
+def _next_commands(notification_id: str | None) -> list[str]:
+    if not notification_id:
+        return []
+    return [
+        f"python -m rand_research.cli mark-notification --notification-id {notification_id} --status sent",
+        f"python -m rand_research.cli mark-notification --notification-id {notification_id} --status failed --error <reason>",
+    ]
 
 
 def _find_task(tasks: list[dict[str, Any]], task_id: str | None, trace_id: str | None) -> dict[str, Any] | None:

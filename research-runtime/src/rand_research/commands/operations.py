@@ -6,7 +6,7 @@ from pathlib import Path
 from rand_research.commands.common import print_json
 from rand_research.config import load_runtime_config
 from rand_research.metrics import collect_metrics
-from rand_research.operations import mark_notification_attempt, pending_resend_payloads, plan_replay
+from rand_research.operations import build_outbox_plan, mark_notification_attempt, pending_resend_payloads, plan_replay
 from rand_research.pilot_health import evaluate_pilot_readiness
 
 
@@ -20,6 +20,9 @@ def register_operations_commands(subparsers: argparse._SubParsersAction[argparse
 
     resend_parser = subparsers.add_parser("resend-pending")
     resend_parser.add_argument("--limit", type=int, default=10)
+
+    outbox_parser = subparsers.add_parser("outbox-plan")
+    outbox_parser.add_argument("--limit", type=int, default=20)
 
     mark_parser = subparsers.add_parser("mark-notification")
     mark_parser.add_argument("--notification-id", required=True)
@@ -51,6 +54,15 @@ def handle_operations_command(args: argparse.Namespace, runtime_root: Path, pars
         runtime = load_runtime_config()
         print_json(
             pending_resend_payloads(
+                runtime_root / runtime.get("operations_state_path", "state/operations-state.json"),
+                args.limit,
+            )
+        )
+        return True
+    if args.command == "outbox-plan":
+        runtime = load_runtime_config()
+        print_json(
+            build_outbox_plan(
                 runtime_root / runtime.get("operations_state_path", "state/operations-state.json"),
                 args.limit,
             )

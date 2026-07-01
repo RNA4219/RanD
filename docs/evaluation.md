@@ -48,6 +48,7 @@ KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mod
 | AC-K17 | Operations metrics | `metrics`, `resend-pending`, `replay-plan` CLI が state / runs から運用情報を返す |
 | AC-K18 | Artifact validation | `validate-artifact` CLI が主要 JSON artifact の必須 field と入れ子 `schema_version` を検査できる |
 | AC-K19 | Pilot readiness gate | `pilot-check` CLI が latest run、artifact schema、operations state、heartbeat config、metrics を集約し、`go / degraded / no_go` を返す |
+| AC-K20 | Outbox remediation | `outbox-plan` CLI が pending / failed notification の推奨アクションを dry-run で返す |
 
 ## 3. 検証コマンド
 
@@ -59,6 +60,7 @@ python -m rand_research.cli env-check
 python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5
 python -m rand_research.cli run-once --preset kano_requirements_audit --max-items 5
 python -m rand_research.cli pilot-check
+python -m rand_research.cli outbox-plan
 python -m rand_research.cli metrics
 python -m rand_research.cli resend-pending --limit 10
 python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format json
@@ -109,6 +111,7 @@ node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Co
 - [x] KanoMode Eval の golden fixture が discovery / audit の期待値を検証している
 - [x] JSON artifact の必須 field は `validate-artifact` CLI で spot check できる
 - [x] pilot runtime readiness は `pilot-check` CLI で一括確認できる
+- [x] notification outbox の remediation は `outbox-plan` CLI で確認できる
 - [x] Code-to-gate report の High/Critical finding が 0、または follow-up が記録されている
 
 ## 5. 残留リスク

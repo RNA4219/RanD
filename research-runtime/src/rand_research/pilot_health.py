@@ -111,9 +111,23 @@ def _evaluate_metrics(metrics: dict[str, Any]) -> list[dict[str, Any]]:
     pending_count = int(metrics.get("pending_notification_count", 0))
     failed_count = int(metrics.get("notification_failure_count", 0))
     if failed_count:
-        checks.append(_check("notification_outbox", "warn", "failed notifications need review", {"failed_count": failed_count}))
+        checks.append(
+            _check(
+                "notification_outbox",
+                "warn",
+                "failed notifications need review",
+                {"failed_count": failed_count, "remediation_command": "python -m rand_research.cli outbox-plan"},
+            )
+        )
     elif pending_count:
-        checks.append(_check("notification_outbox", "warn", "pending notifications are queued", {"pending_count": pending_count}))
+        checks.append(
+            _check(
+                "notification_outbox",
+                "warn",
+                "pending notifications are queued",
+                {"pending_count": pending_count, "remediation_command": "python -m rand_research.cli outbox-plan"},
+            )
+        )
     else:
         checks.append(_check("notification_outbox", "ok", "notification outbox has no pending or failed entries"))
 

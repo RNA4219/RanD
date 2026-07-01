@@ -7,6 +7,7 @@ from rand_research.downstream import build_downstream_handoff
 from rand_research.metrics import collect_metrics
 from rand_research.models import SCHEMA_VERSION
 from rand_research.operations import (
+    build_outbox_plan,
     mark_notification_attempt,
     pending_resend_payloads,
     plan_replay,
@@ -193,6 +194,53 @@ class OperationsTests(unittest.TestCase):
 
             self.assertEqual(plan["status"], "planned")
             self.assertEqual(plan["resume_from"], "notify")
+
+    def test_outbox_plan_recommends_review_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "operations.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "notifications": [
+                            {
+                                "notification_id": "note-fresh",
+                                "run_id": "run-1",
+                                "preset": "paper_arxiv_ai_recent",
+                                "status": "pending",
+                                "attempts": 0,
+                                "reply_text": "Fresh pending",
+                            },
+                            {
+                                "notification_id": "note-attempted",
+                                "run_id": "run-2",
+                                "preset": "paper_arxiv_ai_recent",
+                                "status": "pending",
+                                "attempts": 1,
+                                "reply_text": "Attempted pending",
+                            },
+                            {
+                                "notification_id": "note-failed",
+                                "run_id": "run-3",
+                                "preset": "paper_arxiv_ai_recent",
+                                "status": "failed",
+                                "attempts": 2,
+                                "error": "webhook timeout",
+                                "reply_text": "Failed pending",
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            plan = build_outbox_plan(path)
+
+            self.assertEqual(plan["pending_count"], 3)
+            actions = {item["notification_id"]: item["recommended_action"] for item in plan["actions"]}
+            self.assertEqual(actions["note-fresh"], "send_or_mark_sent")
+            self.assertEqual(actions["note-attempted"], "confirm_delivery")
+            self.assertEqual(actions["note-failed"], "review_failure")
+            self.assertEqual(plan["action_counts"]["send_or_mark_sent"], 1)
 
 
 class MetricsTests(unittest.TestCase):
