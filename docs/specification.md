@@ -306,6 +306,13 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 - metrics から run history、pending / failed notification、tracker sync failure を確認する
 - 返却 status は `go / degraded / no_go` とし、`degraded` は人間レビュー付きで pilot 継続可能な状態を表す
 
+`python -m rand_research.cli pilot-status` は pilot runtime の運用入口とする。
+
+- `pilot-check` と `outbox-plan` を集約する
+- latest snapshot / latest review の path を返す
+- `next_steps` に `review_outbox`, `capture_snapshot`, `record_review`, `inspect_blockers`, `continue_pilot` のいずれかを返す
+- 各 next step は理由と次に実行する CLI command を持つ
+
 ### 6.4.3 notification outbox remediation
 
 `python -m rand_research.cli outbox-plan` は `operations-state.json` の pending / failed notification を読み、状態を書き換えずに remediation plan を返す。
