@@ -134,6 +134,7 @@ KanoMode の詳細な要件・仕様・検収記録は次を正本にします�
 - [KanoMode 仕様書](docs/specification_kano_mode.md)
 - [KanoMode 引継ぎ資料](docs/kano_mode_handoff.md)
 - [KanoMode Eval hardening 検収](docs/acceptance/BB-20260528-02-kano-eval-hardening.md)
+- [Pilot runtime 検収](docs/acceptance/AC-20260702-pilot-runtime.md)
 
 ## 標準チェーンと責務境界
 

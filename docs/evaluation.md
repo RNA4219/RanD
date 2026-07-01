@@ -125,6 +125,7 @@ node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Co
 - [x] pilot snapshot の運用判断は `pilot-review` CLI で保存できる
 - [x] pilot runtime の現在状態と次アクションは `pilot-status` CLI で確認できる
 - [x] 現在状態の snapshot と review は `pilot-accept` CLI でまとめて保存できる
+- [x] pilot runtime acceptance は [AC-20260702-PILOT-RUNTIME](acceptance/AC-20260702-pilot-runtime.md) に記録されている
 - [x] Code-to-gate report の High/Critical finding が 0、または follow-up が記録されている
 
 ## 5. 残留リスク
