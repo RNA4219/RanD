@@ -295,6 +295,17 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 - 外部送信結果を反映する場合は `mark-notification` CLI で `sent / failed` を明示更新する
 - `agent-taskstate` は run / task 状態の正本であり、operations state は通知・再送・replay 計画の補助正本として分離する
 
+### 6.4.2 pilot readiness gate
+
+`python -m rand_research.cli pilot-check` は pilot runtime の軽量 gate とする。
+
+- latest run の `report.json` を検査し、最新 status が `failed` の場合は `no_go` とする
+- latest run に `downstream_handoff.json` があれば schema を検査し、無い場合は `degraded` とする
+- `operations-state.json` の schema を検査する
+- heartbeat config が読め、`default_preset` と `rules` を持つことを検査する
+- metrics から run history、pending / failed notification、tracker sync failure を確認する
+- 返却 status は `go / degraded / no_go` とし、`degraded` は人間レビュー付きで pilot 継続可能な状態を表す
+
 ## 6.5 最小観測点
 
 ダッシュボード自体は本仕様の対象外とするが、次の指標を後から集計できる field / log を保持しなければならない。

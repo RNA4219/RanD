@@ -167,6 +167,7 @@ KanoMode の packet 生成時は追加で `downstream_handoff.json` を保存し
 通知・再送・重複抑止・replay は `state/operations-state.json` に記録します。runtime は直接 Misskey へ送信せず、pending outbox と replay plan を残します。
 
 ```powershell
+python -m rand_research.cli pilot-check
 python -m rand_research.cli metrics
 python -m rand_research.cli resend-pending --limit 10
 python -m rand_research.cli replay-plan --task-id <task-id>
@@ -176,6 +177,8 @@ python -m rand_research.cli tracker-review --path runs/<run_id>/downstream_hando
 python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstream_handoff.json
 python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_handoff.json
 ```
+
+`pilot-check` は latest run、artifact schema、operations state、heartbeat config、metrics をまとめて検査し、`go / degraded / no_go` を返します。`degraded` は pending 通知や最新 run の degraded など、人間レビュー付きなら pilot 継続可能な状態を表します。
 
 `metrics` は `runs/` と `state/` から、日次 run 数、`ok / degraded / failed` 件数、`state_write_failed`、未通知数、replay 件数、duplicate suppression 件数などを集計します。
 

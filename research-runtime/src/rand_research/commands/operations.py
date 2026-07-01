@@ -7,10 +7,12 @@ from rand_research.commands.common import print_json
 from rand_research.config import load_runtime_config
 from rand_research.metrics import collect_metrics
 from rand_research.operations import mark_notification_attempt, pending_resend_payloads, plan_replay
+from rand_research.pilot_health import evaluate_pilot_readiness
 
 
 def register_operations_commands(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     subparsers.add_parser("metrics")
+    subparsers.add_parser("pilot-check")
 
     replay_parser = subparsers.add_parser("replay-plan")
     replay_parser.add_argument("--task-id", default=None)
@@ -28,6 +30,9 @@ def register_operations_commands(subparsers: argparse._SubParsersAction[argparse
 def handle_operations_command(args: argparse.Namespace, runtime_root: Path, parser: argparse.ArgumentParser) -> bool:
     if args.command == "metrics":
         print_json(collect_metrics(runtime_root))
+        return True
+    if args.command == "pilot-check":
+        print_json(evaluate_pilot_readiness(runtime_root))
         return True
     if args.command == "replay-plan":
         if not args.task_id and not args.trace_id:

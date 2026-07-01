@@ -259,6 +259,7 @@ cd research-runtime
 
 ```powershell
 cd research-runtime
+python -m rand_research.cli pilot-check
 python -m rand_research.cli metrics
 python -m rand_research.cli resend-pending --limit 10
 python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format csv
@@ -266,6 +267,8 @@ python -m rand_research.cli tracker-review --path runs/<run_id>/downstream_hando
 python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstream_handoff.json
 python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_handoff.json
 ```
+
+`pilot-check` は latest run、artifact schema、operations outbox、heartbeat config、メトリクスをまとめて確認し、`go / degraded / no_go` を返します。常時運転へ出す前の軽量 gate として扱います。
 
 KanoMode の offline eval を回す:
 
