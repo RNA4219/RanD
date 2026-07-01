@@ -27,6 +27,7 @@ REQUIRED_FIELDS: dict[str, list[str]] = {
         "error",
     ],
     "operations_state": ["schema_version", "dedupe_keys", "notifications", "replays"],
+    "pilot_snapshot": ["schema_version", "snapshot_id", "type", "captured_at", "status", "pilot_check", "outbox_plan", "metrics", "review_required"],
 }
 
 
@@ -50,6 +51,8 @@ def infer_artifact_type(path: Path) -> str:
         return "downstream_handoff"
     if name == "operations-state":
         return "operations_state"
+    if name.startswith("pilot-snapshot"):
+        return "pilot_snapshot"
     return "unknown"
 
 

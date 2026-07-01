@@ -315,6 +315,16 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 - `review_failure`: failed notification。`error` を確認し、再送または失敗確定を判断する
 - `pilot-check` が `notification_outbox` warning を返す場合、detail に `outbox-plan` を remediation command として含める
 
+### 6.4.4 pilot snapshot
+
+`python -m rand_research.cli pilot-snapshot` は、pilot runtime の時点証跡として `pilot_snapshot` artifact を保存する。
+
+- 既定の保存先は `research-runtime/state/pilot-snapshots/pilot-snapshot-*.json` とする
+- artifact は `schema_version`, `snapshot_id`, `type`, `captured_at`, `status`, `latest_run_id`, `pilot_check`, `outbox_plan`, `metrics`, `review_required` を持つ
+- `status` は `pilot-check` の `go / degraded / no_go` を引き継ぐ
+- `review_required` は `status != go` または pending outbox がある場合に `true` とする
+- `--dry-run` は保存せず snapshot payload だけを返す
+
 ## 6.5 最小観測点
 
 ダッシュボード自体は本仕様の対象外とするが、次の指標を後から集計できる field / log を保持しなければならない。

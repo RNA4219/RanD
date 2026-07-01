@@ -8,6 +8,7 @@ from rand_research.config import load_runtime_config
 from rand_research.metrics import collect_metrics
 from rand_research.operations import build_outbox_plan, mark_notification_attempt, pending_resend_payloads, plan_replay
 from rand_research.pilot_health import evaluate_pilot_readiness
+from rand_research.pilot_snapshot import build_pilot_snapshot, write_pilot_snapshot
 
 
 def register_operations_commands(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -23,6 +24,11 @@ def register_operations_commands(subparsers: argparse._SubParsersAction[argparse
 
     outbox_parser = subparsers.add_parser("outbox-plan")
     outbox_parser.add_argument("--limit", type=int, default=20)
+
+    snapshot_parser = subparsers.add_parser("pilot-snapshot")
+    snapshot_parser.add_argument("--out", default=None)
+    snapshot_parser.add_argument("--outbox-limit", type=int, default=20)
+    snapshot_parser.add_argument("--dry-run", action="store_true")
 
     mark_parser = subparsers.add_parser("mark-notification")
     mark_parser.add_argument("--notification-id", required=True)
@@ -67,6 +73,18 @@ def handle_operations_command(args: argparse.Namespace, runtime_root: Path, pars
                 args.limit,
             )
         )
+        return True
+    if args.command == "pilot-snapshot":
+        if args.dry_run:
+            print_json(build_pilot_snapshot(runtime_root, args.outbox_limit))
+        else:
+            print_json(
+                write_pilot_snapshot(
+                    runtime_root,
+                    Path(args.out) if args.out else None,
+                    args.outbox_limit,
+                )
+            )
         return True
     if args.command == "mark-notification":
         runtime = load_runtime_config()
