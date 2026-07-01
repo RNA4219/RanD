@@ -46,6 +46,7 @@ KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mod
 | AC-K15 | Shadow search | `kano_shadow_search` は既定無効で、`RAND_KANO_SHADOW_SEARCH=1` の場合だけ live/search evidence を収集する |
 | AC-K16 | Downstream handoff | KanoMode run が `downstream_handoff.json` を保存し、Task Seed / manual BB / code-to-gate / tracker dry-run issue を含む |
 | AC-K17 | Operations metrics | `metrics`, `resend-pending`, `replay-plan` CLI が state / runs から運用情報を返す |
+| AC-K18 | Artifact validation | `validate-artifact` CLI が主要 JSON artifact の必須 field と入れ子 `schema_version` を検査できる |
 
 ## 3. 検証コマンド
 
@@ -61,6 +62,7 @@ python -m rand_research.cli resend-pending --limit 10
 python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format json
 python -m rand_research.cli tracker-review --path runs/<run_id>/downstream_handoff.json
 python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstream_handoff.json
+python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_handoff.json
 ```
 
 macOS / Linux runtime 入口:
@@ -103,6 +105,7 @@ node C:\Users\ryo-n\Codex_dev\code-to-gate\dist\cli.js analyze C:\Users\ryo-n\Co
 - [x] KanoMode の offline eval で `kano.json` と `requirements_packet.json` が保存される
 - [x] KanoMode audit eval で `requirements_audit_packet.json` が保存され、`status=ok` と `overall_assessment` を別々に確認できる
 - [x] KanoMode Eval の golden fixture が discovery / audit の期待値を検証している
+- [x] JSON artifact の必須 field は `validate-artifact` CLI で spot check できる
 - [x] Code-to-gate report の High/Critical finding が 0、または follow-up が記録されている
 
 ## 5. 残留リスク

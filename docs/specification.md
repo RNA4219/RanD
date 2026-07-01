@@ -218,6 +218,14 @@ KanoMode audit preset では、固定 artifact に加えて次を保存する。
 - additive change は minor 更新として扱う
 - required field の削除、既存 field の意味変更、status 判定規則の破壊的変更は major 更新として扱う
 
+### 5.4 artifact validation CLI
+
+保存済み JSON artifact は `python -m rand_research.cli validate-artifact --path <path> [--type <type>]` で必須 field と `schema_version` を検査できる。
+
+- `--type` 未指定時は file name から artifact type を推定する
+- `report`, `state_context`, `memx_journal`, `tracker_sync`, `kano`, `requirements_packet`, `requirements_audit_packet`, `downstream_handoff`, `operations_state` を対象にする
+- `memx_journal.entries[*]` と `tracker_sync.events[*]` は入れ子の `schema_version` も検査する
+
 ## 6. 外部 repo 契約
 
 ### 6.0 Insight / Gate 実行順序
@@ -276,6 +284,16 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 - notifier resend は保存済み `reply_text` を再利用して worker 再実行なしで動く
 - duplicate suppression は `note`, `reply`, `replay` の 3 種 key を使う
 - replay / resend / duplicate suppression の件数は `pulse-kestra` の flow output と taskstate field を集計元にする
+
+### 6.4.1 operations state 境界
+
+`research-runtime/state/operations-state.json` は RanD runtime local の operations outbox 正本である。
+
+- runtime は notification outbox、dedupe key、replay plan を `operations-state.json` に保存する
+- Kestra heartbeat は `metrics`, `resend-pending`, `replay-plan` CLI を通じて operations state を読む
+- `pulse-kestra` は配送・外部投稿の実行面を担い、runtime local state を直接の外部送信結果としては扱わない
+- 外部送信結果を反映する場合は `mark-notification` CLI で `sent / failed` を明示更新する
+- `agent-taskstate` は run / task 状態の正本であり、operations state は通知・再送・replay 計画の補助正本として分離する
 
 ## 6.5 最小観測点
 

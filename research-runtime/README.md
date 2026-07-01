@@ -131,6 +131,8 @@ state ファイルは atomic write で更新します。途中失敗で壊れた
 
 すべての JSON artifact は `schema_version: "1.0"` を持ちます。
 
+保存済み artifact の必須 field と入れ子の `schema_version` は `validate-artifact` で確認できます。
+
 ## KanoMode
 
 KanoMode は、狩野モデルそのものを実施するものではなく、狩野モデルの品質分類を参照してネット証跡から要求候補を仮分類する実行モードです。正式なアンケートではなく、収集済み evidence や fixture evidence を要求定義向けの artifact に変換します。通常の research chain を壊さず、`research -> insight -> gate -> sync -> notify` の流れに追加 artifact を載せます。
@@ -172,6 +174,7 @@ python -m rand_research.cli mark-notification --notification-id <id> --status se
 python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format csv
 python -m rand_research.cli tracker-review --path runs/<run_id>/downstream_handoff.json
 python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstream_handoff.json
+python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_handoff.json
 ```
 
 `metrics` は `runs/` と `state/` から、日次 run 数、`ok / degraded / failed` 件数、`state_write_failed`、未通知数、replay 件数、duplicate suppression 件数などを集計します。

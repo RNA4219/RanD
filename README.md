@@ -92,6 +92,8 @@
 
 JSON artifact には `schema_version: "1.0"` を持たせています。`report.json` には最低でも `schema_version`, `status`, `status_reason`, `state_context`, `artifacts`, `dependency_health` が入り、`dependency_health.report` によって artifact 保存障害を `state` 障害と分離して観測できます。
 
+保存済み artifact は runtime CLI で契約を spot check できます。通常確認では `report.json`、KanoMode では `kano.json`、`requirements_packet.json` / `requirements_audit_packet.json`、`downstream_handoff.json` を対象にします。
+
 ## KanoMode とは
 
 KanoMode は、狩野モデル参照型の要求分析です。狩野モデルそのものを実施する機能ではありません。
@@ -262,6 +264,7 @@ python -m rand_research.cli resend-pending --limit 10
 python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format csv
 python -m rand_research.cli tracker-review --path runs/<run_id>/downstream_handoff.json
 python -m rand_research.cli generate-task-seeds --handoff runs/<run_id>/downstream_handoff.json
+python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_handoff.json
 ```
 
 KanoMode の offline eval を回す:

@@ -31,6 +31,7 @@ RanD のコンポーネント境界では、暗黙の tool state や非構造な
 - 必須 field が欠ける場合は silent success にせず、`needs_review` または `failed` とする。
 - [Component Trust Policy](component-trust-policy.md) の Level 3 / 4 コンポーネントの出力は、core workflow へ入る前にこの契約へ正規化する。
 - gate decision に利用する artifact は、判断を replay または audit できるだけの入力参照、根拠、規則、制約を保持する。
+- operations state は artifact 保存後の通知・再送・replay 計画を扱う local outbox であり、run / task の正本である `agent-taskstate` と混同しない。
 - 人間の判断も、コメントや chat message だけに残さず `decision_record` として保存する。
 - fallback artifact は [Fallback Policy](fallback-policy.md) の fallback field と review 要件も満たす。
 - `downstream_allowed_uses` にない用途へ利用する場合は、新たなレビューまたは契約更新を必要とする。

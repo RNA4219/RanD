@@ -3,16 +3,17 @@ import unittest
 from unittest.mock import patch
 
 from rand_research import cli
+from rand_research.commands import run as run_commands
 
 
 class HeartbeatCliTests(unittest.TestCase):
     def test_select_preset_by_time_uses_configured_rule(self) -> None:
-        with patch.object(cli, "load_heartbeat_config", return_value={
+        with patch.object(run_commands, "load_heartbeat_config", return_value={
             "timezone": "Asia/Tokyo",
             "default_preset": "paper_arxiv_ai_recent",
             "rules": [{"hours": [8, 9, 10], "preset": "ai_watch_daily"}],
         }):
-            with patch("rand_research.cli.datetime") as mock_datetime:
+            with patch("rand_research.commands.run.datetime") as mock_datetime:
                 mock_now = mock_datetime.now.return_value
                 mock_now.hour = 9
                 self.assertEqual(cli._select_preset_by_time(), "ai_watch_daily")
