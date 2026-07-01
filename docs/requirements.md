@@ -82,6 +82,7 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 | FR-R16 | pilot readiness と outbox remediation は監査用 snapshot として保存できること | `pilot-snapshot` CLI が `state/pilot-snapshots/` に JSON artifact を保存する |
 | FR-R17 | pilot snapshot に対する運用判断を監査用 review artifact として保存できること | `pilot-review` CLI が `*.review.json` を保存する |
 | FR-R18 | pilot runtime の現在状態と次アクションを一括確認できること | `pilot-status` CLI が readiness、outbox、latest snapshot/review、next_steps を返す |
+| FR-R19 | 現在状態の snapshot と review を 1 回の運用コマンドで保存できること | `pilot-accept` CLI が snapshot と review を保存する |
 
 ### 4.3 Artifact / Schema
 
@@ -132,6 +133,7 @@ RanD は、R&D エージェントを構成する OSS 群を固定コミットで
 - AC-16: `pilot-snapshot` CLI が pilot readiness 証跡を保存する
 - AC-17: `pilot-review` CLI が pilot snapshot の判断と follow-up を保存する
 - AC-18: `pilot-status` CLI が現在状態と次アクションを返す
+- AC-19: `pilot-accept` CLI が現在状態の snapshot と review を保存する
 
 ## 7. 拡張要件
 

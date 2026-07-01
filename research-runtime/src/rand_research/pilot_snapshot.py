@@ -64,6 +64,34 @@ def review_pilot_snapshot(
     }
 
 
+def accept_current_pilot_state(
+    runtime_root: Path,
+    decision: str = "accept_with_review",
+    reviewer: str = "local-operator",
+    notes: str = "",
+    outbox_limit: int = 20,
+) -> dict[str, Any]:
+    snapshot_result = write_pilot_snapshot(runtime_root, outbox_limit=outbox_limit)
+    review_result = review_pilot_snapshot(
+        Path(snapshot_result["path"]),
+        decision,
+        reviewer,
+        notes,
+    )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "written",
+        "snapshot_path": snapshot_result["path"],
+        "review_path": review_result["path"],
+        "snapshot_status": snapshot_result["snapshot"].get("status"),
+        "decision": review_result["review"].get("decision"),
+        "review_required": review_result["review"].get("review_required"),
+        "required_followup_count": len(review_result["review"].get("required_followups", [])),
+        "snapshot": snapshot_result["snapshot"],
+        "review": review_result["review"],
+    }
+
+
 def build_pilot_review(
     snapshot: dict[str, Any],
     snapshot_path: Path,

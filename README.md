@@ -264,6 +264,7 @@ python -m rand_research.cli pilot-check
 python -m rand_research.cli outbox-plan
 python -m rand_research.cli pilot-snapshot
 python -m rand_research.cli pilot-review --snapshot state/pilot-snapshots/<snapshot>.json --decision accept_with_review --notes "pending outbox reviewed"
+python -m rand_research.cli pilot-accept --notes "accepted for pilot"
 python -m rand_research.cli metrics
 python -m rand_research.cli resend-pending --limit 10
 python -m rand_research.cli shadow-eval-template --run-dir runs/<run_id> --format csv
@@ -277,6 +278,7 @@ python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_ha
 `notification_outbox` が `degraded` の場合は `outbox-plan` で pending / failed notification ごとの推奨アクションを確認し、外部配送結果に応じて `mark-notification` で `sent / failed` を反映します。
 `pilot-snapshot` は `pilot-check`、`outbox-plan`、`metrics` の結果を `state/pilot-snapshots/` に保存し、後から pilot readiness と未処理 outbox を監査できるようにします。
 `pilot-review` は snapshot に対する運用判断を `*.review.json` として保存し、`accept / accept_with_review / hold / block` と follow-up を残します。
+`pilot-accept` は現在状態の snapshot 作成と review 保存を 1 回で行う日次運用向けショートカットです。
 
 KanoMode の offline eval を回す:
 

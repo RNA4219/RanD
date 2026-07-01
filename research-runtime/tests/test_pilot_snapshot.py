@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rand_research.artifact_schema import validate_artifact_path
-from rand_research.pilot_snapshot import build_pilot_snapshot, review_pilot_snapshot, write_pilot_snapshot
+from rand_research.pilot_snapshot import accept_current_pilot_state, build_pilot_snapshot, review_pilot_snapshot, write_pilot_snapshot
 
 
 class PilotSnapshotTests(unittest.TestCase):
@@ -65,6 +65,29 @@ class PilotSnapshotTests(unittest.TestCase):
             validation = validate_artifact_path(review_path)
             self.assertEqual(validation["artifact_type"], "pilot_review")
             self.assertEqual(validation["status"], "ok")
+
+    def test_accept_current_pilot_state_writes_snapshot_and_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._write_valid_run(root)
+            self._write_operations(root, pending=True)
+
+            with patch("rand_research.pilot_health.load_heartbeat_config", return_value=self._heartbeat_config()):
+                result = accept_current_pilot_state(
+                    root,
+                    decision="accept_with_review",
+                    reviewer="tester",
+                    notes="accepted for pilot",
+                )
+
+            snapshot_path = Path(result["snapshot_path"])
+            review_path = Path(result["review_path"])
+            self.assertTrue(snapshot_path.exists())
+            self.assertTrue(review_path.exists())
+            self.assertEqual(result["snapshot_status"], "degraded")
+            self.assertEqual(result["decision"], "accept_with_review")
+            self.assertGreater(result["required_followup_count"], 0)
+            self.assertEqual(result["review"]["snapshot_ref"]["path"], str(snapshot_path))
 
     def _write_valid_run(self, root: Path) -> None:
         run_id = "20260702-010000-ok"

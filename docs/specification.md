@@ -343,6 +343,12 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 - `required_followups` は `pilot-check` の warning / failure と `outbox-plan` の action を引き継ぐ
 - `accept_with_review`, `hold`, `block` は `review_required=true` とする
 
+`python -m rand_research.cli pilot-accept` は、現在状態の `pilot-snapshot` と `pilot-review` を連続して保存する日次運用向けショートカットとする。
+
+- 既定 decision は `accept_with_review` とする
+- snapshot と review は `state/pilot-snapshots/` に保存する
+- 出力は `snapshot_path`, `review_path`, `snapshot_status`, `decision`, `required_followup_count` を持つ
+
 ## 6.5 最小観測点
 
 ダッシュボード自体は本仕様の対象外とするが、次の指標を後から集計できる field / log を保持しなければならない。

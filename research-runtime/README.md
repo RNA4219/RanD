@@ -172,6 +172,7 @@ python -m rand_research.cli pilot-check
 python -m rand_research.cli outbox-plan
 python -m rand_research.cli pilot-snapshot
 python -m rand_research.cli pilot-review --snapshot state/pilot-snapshots/<snapshot>.json --decision accept_with_review
+python -m rand_research.cli pilot-accept --notes "accepted for pilot"
 python -m rand_research.cli metrics
 python -m rand_research.cli resend-pending --limit 10
 python -m rand_research.cli replay-plan --task-id <task-id>
@@ -191,6 +192,8 @@ python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_ha
 `pilot-snapshot` は `pilot-check`、`outbox-plan`、`metrics` の結果を `state/pilot-snapshots/pilot-snapshot-*.json` に保存します。`--dry-run` を付けると保存せず JSON だけを返します。
 
 `pilot-review` は snapshot に対する運用判断を `*.review.json` に保存します。判断は `accept / accept_with_review / hold / block` のいずれかで、`pilot-check` の warning と outbox action は `required_followups` に引き継がれます。
+
+`pilot-accept` は現在状態の snapshot 作成と review 保存を 1 回で行います。既定 decision は `accept_with_review` です。
 
 `metrics` は `runs/` と `state/` から、日次 run 数、`ok / degraded / failed` 件数、`state_write_failed`、未通知数、replay 件数、duplicate suppression 件数などを集計します。
 

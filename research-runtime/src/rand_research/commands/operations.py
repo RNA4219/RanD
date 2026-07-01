@@ -8,7 +8,7 @@ from rand_research.config import load_runtime_config
 from rand_research.metrics import collect_metrics
 from rand_research.operations import build_outbox_plan, mark_notification_attempt, pending_resend_payloads, plan_replay
 from rand_research.pilot_health import evaluate_pilot_readiness
-from rand_research.pilot_snapshot import build_pilot_snapshot, review_pilot_snapshot, write_pilot_snapshot
+from rand_research.pilot_snapshot import accept_current_pilot_state, build_pilot_snapshot, review_pilot_snapshot, write_pilot_snapshot
 from rand_research.pilot_status import build_pilot_status
 
 
@@ -38,6 +38,12 @@ def register_operations_commands(subparsers: argparse._SubParsersAction[argparse
     review_parser.add_argument("--reviewer", default="local-operator")
     review_parser.add_argument("--notes", default="")
     review_parser.add_argument("--out", default=None)
+
+    accept_parser = subparsers.add_parser("pilot-accept")
+    accept_parser.add_argument("--decision", default="accept_with_review", choices=["accept", "accept_with_review", "hold", "block"])
+    accept_parser.add_argument("--reviewer", default="local-operator")
+    accept_parser.add_argument("--notes", default="")
+    accept_parser.add_argument("--outbox-limit", type=int, default=20)
 
     mark_parser = subparsers.add_parser("mark-notification")
     mark_parser.add_argument("--notification-id", required=True)
@@ -106,6 +112,17 @@ def handle_operations_command(args: argparse.Namespace, runtime_root: Path, pars
                 args.reviewer,
                 args.notes,
                 Path(args.out) if args.out else None,
+            )
+        )
+        return True
+    if args.command == "pilot-accept":
+        print_json(
+            accept_current_pilot_state(
+                runtime_root,
+                args.decision,
+                args.reviewer,
+                args.notes,
+                args.outbox_limit,
             )
         )
         return True
