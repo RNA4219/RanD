@@ -267,12 +267,13 @@ KanoMode は既存 8 artifact に加えて、次を追加できる。
 | `assumptions` | 前提 |
 | `requirements` | 要求一覧 |
 | `release_readiness_prelude` | release readiness 前段 |
+| `qeg_policy_hash_ref` | QEG policy 正本の policyHash 参照 |
 
 `requirements[*]` の必須 fields:
 
 | field | 内容 |
 | --- | --- |
-| `requirement_id` | `REQ-001` 形式の要求 ID |
+| `requirement_id` | `rand:REQ-001` 形式の要求 ID |
 | `title` | 要求タイトル |
 | `statement` | 要求文 |
 | `kano_type` | Kano type |
@@ -284,7 +285,7 @@ KanoMode は既存 8 artifact に加えて、次を追加できる。
 | `risks` | リスク |
 | `manual_bb_focus` | 手動ブラックボックス観点 |
 | `downstream_hooks` | downstream OSS への接続先 |
-| `gate_policy` | gate 方針 |
+| `gate_policy_proposal` | QEG policy 正本へ渡す gate 方針の提案 |
 | `bias_note` | 想定バイアス |
 | `kill_condition` | 何が起きたら捨てるか |
 
@@ -324,20 +325,21 @@ Sample artifact: [examples/requirements_audit_packet.sample.json](examples/requi
 
 ### 6.6 `downstream_handoff.json`
 
-`downstream_handoff.json` は、KanoMode の主契約を downstream OSS が消費しやすい形へ分解する dry-run artifact である。
+`downstream_handoff.json` は、KanoMode の主契約を downstream OSS が消費しやすい形へ分解する handoff artifact である。既定は `dry_run` で実送信せず、`shadow` は送信内容を記録するが送らない。`live` は preset / runtime config で明示された場合だけ送信し、結果を観測点として残す。
 
 必須 root fields:
 
 | field | 内容 |
 | --- | --- |
 | `schema_version` | artifact schema version |
-| `handoff_id` | handoff ID |
+| `handoff_id` | `rand:downstream-*` 形式の handoff ID |
 | `mode` | `requirements_packet` または `requirements_audit_packet` |
 | `workflow_cookbook` | Task Seed 候補 |
 | `manual_bb_test_harness` | 手動 BB 観点 seed |
 | `code_to_gate` | phase contract / implementation alignment seed |
-| `tracker_bridge` | tracker dry-run issue |
-| `status` | `dry_run` |
+| `tracker_bridge` | tracker issue draft |
+| `status` | `dry_run`, `shadow`, `live` |
+| `delivery` | handoff mode、送信試行有無、成功 / 失敗、宛先受理 verdict |
 | `error` | エラー。正常時は null |
 
 補助 CLI:

@@ -78,13 +78,22 @@ class PilotHealthTests(unittest.TestCase):
                 json.dumps(
                     {
                         "schema_version": "1.0",
-                        "handoff_id": f"handoff-{run_id}",
+                        "handoff_id": f"rand:downstream-{run_id}",
                         "mode": "discovery",
                         "workflow_cookbook": {},
                         "manual_bb_test_harness": {},
                         "code_to_gate": {},
                         "tracker_bridge": {},
                         "status": "dry_run",
+                        "delivery": {
+                            "mode": "dry_run",
+                            "attempted": False,
+                            "sent": False,
+                            "success": None,
+                            "destination": "tracker_bridge",
+                            "destination_verdict": None,
+                            "error": None,
+                        },
                         "error": None,
                     }
                 ),

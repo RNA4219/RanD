@@ -4,11 +4,11 @@
     "promoted_requirements_count": 1,
     "promoted_requirements": [
       {
-        "requirement_id": "REQ-001",
+        "requirement_id": "rand:REQ-001",
         "candidate_id": "KC-001",
         "kano_type": "must_be",
         "priority": "P0",
-        "gate_policy": "hard_gate",
+        "gate_policy_proposal": "hard_gate",
         "confidence": 0.83,
         "statement": "KanoMode は証拠不足や検索失敗を明示し、要求パケットを過信させてはならない。",
         "evidence_refs_count": 3,

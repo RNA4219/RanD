@@ -142,9 +142,10 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
 | FR-K16 | audit packet は manual-bb-test-harness と code-to-gate へ渡す gate summary を持つこと | `requirements_audit_packet.json.gate_summary` で確認できる |
 | FR-K17 | Requirement Definition Gate は `go`, `conditional_go`, `no_go` を返せること | audit fixture または sample artifact で確認できる |
 | FR-K19 | live/search pilot は既定無効の shadow adapter として提供し、通常検収の再現性を壊さないこと | `kano_shadow_search` と `RAND_KANO_SHADOW_SEARCH` の unit test で確認できる |
-| FR-K20 | discovery / audit packet は downstream handoff artifact に変換できること | `downstream_handoff.json` に Task Seed / manual BB / code-to-gate / tracker dry-run issue が存在する |
+| FR-K20 | discovery / audit packet は downstream handoff artifact に変換できること | `downstream_handoff.json` に Task Seed / manual BB / code-to-gate / tracker issue draft と delivery 観測点が存在する |
 | FR-K21 | live/search shadow evidence は人手評価テンプレへ変換できること | `shadow-eval-template` の JSON/CSV 出力で確認できる |
-| FR-K22 | tracker dry-run issue と Task Seed draft は実送信・実書き込み前にレビューできること | `tracker-review` と `generate-task-seeds` の dry-run 出力で確認できる |
+| FR-K22 | tracker issue draft と Task Seed draft は実送信・実書き込み前にレビューできること | `tracker-review` と `generate-task-seeds` の dry-run 出力で確認できる |
+| FR-K23 | downstream handoff は `dry_run` / `shadow` / `live` を preset / runtime config 単位で切り替えられ、未指定時は `dry_run` とすること | runtime config、shadow fixture test、live transport unit test で確認できる |
 
 ## 6. 非機能要求
 
@@ -158,7 +159,7 @@ KanoMode は新規 OSS ではなく、RanD の research runtime に追加する�
 | NFR-K06 | discovery mode で downstream OSS へ渡す主契約は `requirements_packet.json` に集約すること | README / specification に明記される |
 | NFR-K07 | 既存要件監査では、書かれた要件を正とせず外部証跡・Kano分類・検収可能性・実装整合性で再評価すること | audit specification と gate criteria に明記される |
 | NFR-K08 | audit mode で downstream OSS へ渡す主契約は `requirements_audit_packet.json` に集約すること | specification に明記される |
-| NFR-K09 | downstream handoff は実送信を行わず dry-run artifact として保存すること | `downstream_handoff.json.status=dry_run` で確認できる |
+| NFR-K09 | downstream handoff は明示的に `live` を指定しない限り実送信せず、`dry_run` / `shadow` では `delivery.sent=false` を保存すること | `downstream_handoff.json.status` と `delivery.sent` で確認できる |
 
 ## 7. 成功指標
 

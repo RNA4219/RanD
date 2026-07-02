@@ -32,7 +32,7 @@ KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mod
 | AC-K01 | Kano preset | `kano_requirements_hybrid` preset が存在する |
 | AC-K02 | offline eval | live web なしで fixture / cached corpus による評価導線がある |
 | AC-K03 | Kano artifact | `kano.json` が `schema_version`, `mode`, `request_id`, `topic`, `persona_modes`, `source_summary`, `kano_candidates`, `known_biases` を持つ。`kano_candidates[*]` が `candidate_id`, `statement`, `kano_type`, `confidence`, `evidence`, `persona_votes`, `bias_note`, `kill_condition` を持つ |
-| AC-K04 | requirements packet | `requirements_packet.json` が `schema_version`, `packet_id`, `derived_from`, `product_context`, `assumptions`, `requirements`, `release_readiness_prelude` を持つ。`requirements[*]` が `requirement_id`, `title`, `statement`, `kano_type`, `priority`, `confidence`, `evidence_refs`, `kpi`, `acceptance_criteria`, `risks`, `manual_bb_focus`, `downstream_hooks`, `gate_policy`, `bias_note`, `kill_condition` を持つ |
+| AC-K04 | requirements packet | `requirements_packet.json` が `schema_version`, `packet_id`, `derived_from`, `product_context`, `assumptions`, `requirements`, `release_readiness_prelude`, `qeg_policy_hash_ref` を持つ。`packet_id` と `requirements[*].requirement_id` は `rand:` prefix 付きで、`requirements[*]` が `requirement_id`, `title`, `statement`, `kano_type`, `priority`, `confidence`, `evidence_refs`, `kpi`, `acceptance_criteria`, `risks`, `manual_bb_focus`, `downstream_hooks`, `gate_policy_proposal`, `bias_note`, `kill_condition` を持つ |
 | AC-K05 | safety fields | confidence, bias_note, kill_condition 欠損時に packet 昇格しない |
 | AC-K06 | compatibility | 既存 preset の `python -m unittest discover tests` が通る |
 | AC-K07 | audit artifact | `requirements_audit_packet.json` の root と requirement item の必須 field が仕様化されている |
@@ -44,7 +44,7 @@ KanoMode の詳細な要件は [requirements_kano_mode.md](requirements_kano_mod
 | AC-K13 | Promotion gate | `requirements_packet` 昇格には confidence 閾値、安全 field、証拠 tier、Kano type の条件があり、低 confidence / `questionable` / 証拠不足候補を昇格しない |
 | AC-K14 | Golden Eval | discovery / audit の fixture に対して promoted requirements、verdict distribution、overall assessment を golden 期待値として検証する |
 | AC-K15 | Shadow search | `kano_shadow_search` は既定無効で、`RAND_KANO_SHADOW_SEARCH=1` の場合だけ live/search evidence を収集する |
-| AC-K16 | Downstream handoff | KanoMode run が `downstream_handoff.json` を保存し、Task Seed / manual BB / code-to-gate / tracker dry-run issue を含む |
+| AC-K16 | Downstream handoff | KanoMode run が `downstream_handoff.json` を保存し、Task Seed / manual BB / code-to-gate / tracker issue draft と `delivery` 観測点を含む。既定は `dry_run`、shadow fixture は記録のみ、live は明示設定時だけ送信結果を保存する |
 | AC-K17 | Operations metrics | `metrics`, `resend-pending`, `replay-plan` CLI が state / runs から運用情報を返す |
 | AC-K18 | Artifact validation | `validate-artifact` CLI が主要 JSON artifact の必須 field と入れ子 `schema_version` を検査できる |
 | AC-K19 | Pilot readiness gate | `pilot-check` CLI が latest run、artifact schema、operations state、heartbeat config、metrics を集約し、`go / degraded / no_go` を返す |

@@ -21,6 +21,14 @@ def collect_metrics(runtime_root: Path) -> dict[str, Any]:
     notifications = operations.get("notifications", [])
     replays = operations.get("replays", [])
     tracker_events = tracker.get("events", [])
+    handoffs = _load_downstream_handoffs(runs_root)
+    handoff_delivery = [handoff.get("delivery", {}) for handoff in handoffs]
+    handoff_modes = Counter(handoff.get("status", "unknown") for handoff in handoffs)
+    destination_verdicts = Counter(
+        delivery.get("destination_verdict")
+        for delivery in handoff_delivery
+        if delivery.get("destination_verdict")
+    )
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -36,6 +44,15 @@ def collect_metrics(runtime_root: Path) -> dict[str, Any]:
         "notification_failure_count": sum(1 for item in notifications if item.get("status") == "failed"),
         "tracker_sync_failure_count": sum(1 for item in tracker_events if item.get("status") not in {"ok", None}),
         "duplicate_suppression_count": sum(1 for item in notifications if item.get("status") == "duplicate_suppressed"),
+        "downstream_handoff_count": len(handoffs),
+        "downstream_handoff_mode_counts": dict(sorted(handoff_modes.items())),
+        "downstream_handoff_live_success_count": sum(
+            1 for delivery in handoff_delivery if delivery.get("mode") == "live" and delivery.get("success") is True
+        ),
+        "downstream_handoff_live_failure_count": sum(
+            1 for delivery in handoff_delivery if delivery.get("mode") == "live" and delivery.get("success") is False
+        ),
+        "downstream_handoff_destination_verdict_counts": dict(sorted(destination_verdicts.items())),
     }
 
 
@@ -58,6 +75,18 @@ def _load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return default
+
+
+def _load_downstream_handoffs(runs_root: Path) -> list[dict[str, Any]]:
+    if not runs_root.exists():
+        return []
+    handoffs: list[dict[str, Any]] = []
+    for path in sorted(runs_root.glob("*/downstream_handoff.json")):
+        try:
+            handoffs.append(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+    return handoffs
 
 
 def _day(value: str | None) -> str:

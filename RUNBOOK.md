@@ -24,7 +24,7 @@ KanoMode は、まずドキュメント実装として進める。
 - 文書だけ整える場合は、`docs/requirements_kano_mode.md`、`docs/tasks/`、`docs/kano_mode_handoff.md` を中心に更新する。
 - **[2026-05-26 実装完了]** Discovery mode と Audit mode の実装が完了し、commit済み (`ef89f64`)。
 - **[2026-05-26 修正完了]** atomic write対策追加（state file corruption防止）。
-- **[2026-07-01 追加]** live/search shadow adapter、`downstream_handoff.json`、operations outbox / replay / resend / metrics CLI を追加。live search と外部送信は既定無効または dry-run として扱う。
+- **[2026-07-02 追加]** live/search shadow adapter、`downstream_handoff.json`、operations outbox / replay / resend / metrics CLI を追加。downstream handoff は `dry_run` / `shadow` / `live` の段階制で、未指定時は `dry_run`、明示 `live` 以外は外部送信しない。
 - offline eval で `kano.json`、`requirements_packet.json`、`requirements_audit_packet.json` が生成され、`status: ok` になることを確認済み。
 - pytest 70 tests OK。
 

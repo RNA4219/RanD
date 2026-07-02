@@ -206,12 +206,18 @@ KanoMode audit preset では、固定 artifact に加えて次を保存する。
   - 必須: `schema_version`, `mode`, `request_id`, `topic`, `persona_modes`, `source_summary`, `kano_candidates`
   - 各 candidate は `candidate_id`, `statement`, `kano_type`, `confidence`, `evidence`, `persona_votes`, `bias_note`, `kill_condition` を持つ
 - `requirements_packet.json`
-  - 必須: `schema_version`, `packet_id`, `derived_from`, `product_context`, `requirements`, `release_readiness_prelude`
-  - 各 requirement は `requirement_id`, `statement`, `kano_type`, `priority`, `confidence`, `evidence_refs`, `kpi`, `acceptance_criteria`, `risks`, `downstream_hooks`, `gate_policy` を持つ
+  - 必須: `schema_version`, `packet_id`, `derived_from`, `product_context`, `requirements`, `release_readiness_prelude`, `qeg_policy_hash_ref`
+  - `packet_id` と各 `requirement_id` は `rand:` prefix 付き ID とする
+  - 各 requirement は `requirement_id`, `statement`, `kano_type`, `priority`, `confidence`, `evidence_refs`, `kpi`, `acceptance_criteria`, `risks`, `downstream_hooks`, `gate_policy_proposal` を持つ
+  - `gate_policy_proposal` は QEG policy 正本への提案であり、QEG policyHash 参照を併記する
   - `confidence`, `bias_note`, `kill_condition` が欠ける candidate は packet に昇格しない
 - `downstream_handoff.json`
-  - 必須: `schema_version`, `handoff_id`, `mode`, `workflow_cookbook`, `manual_bb_test_harness`, `code_to_gate`, `tracker_bridge`, `status`, `error`
-  - `status` は実送信前の `dry_run` を基本とする
+  - 必須: `schema_version`, `handoff_id`, `mode`, `workflow_cookbook`, `manual_bb_test_harness`, `code_to_gate`, `tracker_bridge`, `status`, `delivery`, `error`
+  - `handoff_id` は `rand:` prefix 付き ID とする
+  - `status` は `dry_run`, `shadow`, `live` のいずれかとし、未指定時は `dry_run` とする
+  - `dry_run` は実送信も送信内容の通電記録も行わない
+  - `shadow` は送信内容を記録するが実送信しない
+  - `live` は明示設定時のみ送信し、成功 / 失敗 / 宛先受理 verdict を `delivery` に残す
 
 ### 5.3 compatibility policy
 
@@ -363,8 +369,11 @@ RanD を常時運転へ接続する制御面は `pulse-kestra` が担う。現�
 - notification failure 件数
 - tracker sync failure 件数
 - duplicate suppression 件数
+- downstream handoff mode 件数
+- downstream live success / failure 件数
+- downstream 宛先受理 verdict 件数
 
-`RanD` 単体では `status`, `status_reason`, `dependency_health`, `tracker_sync_refs` を集計元とし、通知・再送・重複抑止の詳細は `pulse-kestra` 側の flow output、taskstate field、dedupe metadata で補完する。
+`RanD` 単体では `status`, `status_reason`, `dependency_health`, `tracker_sync_refs`, `downstream_handoff.delivery` を集計元とし、通知・再送・重複抑止の詳細は `pulse-kestra` 側の flow output、taskstate field、dedupe metadata で補完する。
 
 ## 7. テスト戦略
 

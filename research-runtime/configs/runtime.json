@@ -9,6 +9,7 @@
   "enable_insight": true,
   "enable_memx": true,
   "enable_tracker_bridge": true,
+  "downstream_handoff_mode": "dry_run",
   "save_root": "runs",
   "state_path": "state/taskstate.json",
   "memory_log_path": "state/memx-journal.json",

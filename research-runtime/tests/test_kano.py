@@ -37,7 +37,9 @@ class KanoTests(unittest.TestCase):
         self.assertEqual(artifacts["kano"]["kano_candidates"][0]["kano_type"], "must_be")
         requirement = artifacts["requirements_packet"]["requirements"][0]
         self.assertEqual(requirement["priority"], "P0")
-        self.assertEqual(requirement["gate_policy"], "hard_gate")
+        self.assertEqual(requirement["requirement_id"], "rand:REQ-001")
+        self.assertEqual(requirement["gate_policy_proposal"]["proposal"], "hard_gate")
+        self.assertEqual(artifacts["requirements_packet"]["qeg_policy_hash_ref"], "qeg:policyHash:unadopted-proposal")
 
     def test_build_kano_artifacts_does_not_promote_missing_safety_fields(self) -> None:
         items = [
@@ -398,7 +400,7 @@ class AttractiveGatePolicyTests(unittest.TestCase):
         requirement = artifacts["requirements_packet"]["requirements"][0]
         self.assertEqual(requirement["kano_type"], "attractive")
         self.assertEqual(requirement["priority"], "P2")
-        self.assertEqual(requirement["gate_policy"], "soft_experiment_gate")
+        self.assertEqual(requirement["gate_policy_proposal"]["proposal"], "soft_experiment_gate")
 
 
 class GateSummaryTests(unittest.TestCase):
@@ -568,7 +570,7 @@ class GoldenFixtureTests(unittest.TestCase):
             self.assertIn(expected_req["candidate_id"], promoted_req["evidence_refs"])
             self.assertEqual(promoted_req["kano_type"], expected_req["kano_type"])
             self.assertEqual(promoted_req["priority"], expected_req["priority"])
-            self.assertEqual(promoted_req["gate_policy"], expected_req["gate_policy"])
+            self.assertEqual(promoted_req["gate_policy_proposal"]["proposal"], expected_req["gate_policy_proposal"])
             self.assertEqual(promoted_req["confidence"], expected_req["confidence"])
             self.assertEqual(promoted_req["statement"], expected_req["statement"])
             self.assertEqual(len(promoted_req["evidence_refs"]), expected_req["evidence_refs_count"])

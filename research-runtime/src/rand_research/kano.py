@@ -14,6 +14,12 @@ TESTABILITY_LEVELS = {"high", "medium", "low", "blocked"}
 
 IMPLEMENTATION_ALIGNMENT_LEVELS = {"high", "medium", "low", "unknown"}
 
+DEFAULT_QEG_POLICY_HASH_REF = "qeg:policyHash:unadopted-proposal"
+
+
+def _rand_id(local_id: str) -> str:
+    return local_id if local_id.startswith("rand:") else f"rand:{local_id}"
+
 
 def build_kano_artifacts(items: list[NormalizedItem], preset: dict[str, Any], run_id: str) -> dict[str, dict[str, Any]]:
     candidates = _build_candidates(items, preset, run_id)
@@ -21,8 +27,9 @@ def build_kano_artifacts(items: list[NormalizedItem], preset: dict[str, Any], ru
     requirements = [_candidate_to_requirement(candidate, index) for index, candidate in enumerate(promoted_candidates, start=1)]
     packet = {
         "schema_version": SCHEMA_VERSION,
-        "packet_id": f"rp-{run_id}",
+        "packet_id": _rand_id(f"rp-{run_id}"),
         "derived_from": "kano.json",
+        "qeg_policy_hash_ref": preset.get("qeg_policy_hash_ref", DEFAULT_QEG_POLICY_HASH_REF),
         "product_context": preset.get(
             "product_context",
             {
@@ -121,8 +128,9 @@ def _candidate_sort_key(candidate: dict[str, Any]) -> tuple[int, int, str]:
 
 def _candidate_to_requirement(candidate: dict[str, Any], index: int) -> dict[str, Any]:
     kano_type = candidate["kano_type"]
+    proposal = _gate_policy_for(kano_type)
     return {
-        "requirement_id": f"REQ-{index:03d}",
+        "requirement_id": _rand_id(f"REQ-{index:03d}"),
         "title": candidate["statement"][:80],
         "statement": candidate["statement"],
         "kano_type": kano_type,
@@ -139,7 +147,11 @@ def _candidate_to_requirement(candidate: dict[str, Any], index: int) -> dict[str
             "code_to_gate": "phase_contract_or_intake",
             "shipyard_cp": "plan_stage_task",
         },
-        "gate_policy": _gate_policy_for(kano_type),
+        "gate_policy_proposal": {
+            "proposal": proposal,
+            "policyHashRef": DEFAULT_QEG_POLICY_HASH_REF,
+            "source": "rand:kano_requirements_packet",
+        },
         "bias_note": candidate["bias_note"],
         "kill_condition": candidate["kill_condition"],
     }
@@ -337,7 +349,7 @@ def _build_audit_requirements(
 ) -> list[dict[str, Any]]:
     grouped: dict[str, list[NormalizedItem]] = {}
     for item in items:
-        req_id = item.metadata.get("requirement_id") or f"REQ-{item.id[:8]}"
+        req_id = _rand_id(item.metadata.get("requirement_id") or f"REQ-{item.id[:8]}")
         grouped.setdefault(req_id, []).append(item)
 
     requirements: list[dict[str, Any]] = []

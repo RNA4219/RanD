@@ -149,7 +149,8 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
         extra_payloads = build_kano_artifacts(items, preset, run_id)
     elif preset.get("mode") == "kano_audit":
         extra_payloads = build_audit_artifacts(items, preset, run_id)
-    downstream_handoff = build_downstream_handoff(extra_payloads, run_id) if extra_payloads else None
+    downstream_handoff_mode = preset.get("downstream_handoff_mode") or runtime.get("downstream_handoff_mode", "dry_run")
+    downstream_handoff = build_downstream_handoff(extra_payloads, run_id, mode=downstream_handoff_mode) if extra_payloads else None
     if downstream_handoff:
         extra_payloads["downstream_handoff"] = downstream_handoff
 
@@ -187,6 +188,7 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
         dependency_health,
         status_reasons,
         errors,
+        _downstream_observations(downstream_handoff),
     )
 
     try:
@@ -332,9 +334,19 @@ def _safe_task_update(
     dependency_health: dict[str, str],
     mutable_reasons: list[str],
     errors: list[str],
+    observations: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
-        record = upsert_task_record(state_path, run_id, preset_name, status, artifacts, summary, _unique(status_reason))
+        record = upsert_task_record(
+            state_path,
+            run_id,
+            preset_name,
+            status,
+            artifacts,
+            summary,
+            _unique(status_reason),
+            observations=observations,
+        )
         if record is None:
             dependency_health["state"] = "failed"
             mutable_reasons.append("state_write_failed")
@@ -347,6 +359,7 @@ def _safe_task_update(
             "artifacts": artifacts,
             "summary": summary,
             "status_reason": _unique(status_reason),
+            **({"observations": observations} if observations else {}),
         }
     except Exception as exc:
         dependency_health["state"] = "failed"
@@ -360,6 +373,7 @@ def _safe_task_update(
             "artifacts": artifacts,
             "summary": summary,
             "status_reason": _unique(status_reason),
+            **({"observations": observations} if observations else {}),
         }
 
 
@@ -443,3 +457,15 @@ def _unique(values: list[str]) -> list[str]:
         seen.add(value)
         ordered.append(value)
     return ordered
+
+
+def _downstream_observations(handoff: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not handoff:
+        return None
+    return {
+        "downstream_handoff": {
+            "handoff_id": handoff.get("handoff_id"),
+            "mode": handoff.get("status"),
+            "delivery": handoff.get("delivery", {}),
+        }
+    }

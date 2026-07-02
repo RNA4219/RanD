@@ -22,14 +22,18 @@ class DownstreamHandoffTests(unittest.TestCase):
             "schema_version": SCHEMA_VERSION,
             "requirements": [
                 {
-                    "requirement_id": "REQ-001",
+                    "requirement_id": "rand:REQ-001",
                     "title": "Evidence safety",
                     "statement": "Evidence must be explicit.",
                     "priority": "P0",
                     "acceptance_criteria": ["has evidence"],
                     "evidence_refs": ["KC-001", "EV-001"],
                     "risks": ["bias"],
-                    "gate_policy": "hard_gate",
+                    "gate_policy_proposal": {
+                        "proposal": "hard_gate",
+                        "policyHashRef": "qeg:policyHash:unadopted-proposal",
+                        "source": "rand:test",
+                    },
                     "confidence": 0.9,
                     "kano_type": "must_be",
                 }
@@ -41,10 +45,46 @@ class DownstreamHandoffTests(unittest.TestCase):
         self.assertIsNotNone(handoff)
         assert handoff is not None
         self.assertEqual(handoff["status"], "dry_run")
+        self.assertEqual(handoff["handoff_id"], "rand:downstream-run-1")
+        self.assertEqual(handoff["delivery"]["mode"], "dry_run")
+        self.assertFalse(handoff["delivery"]["sent"])
         self.assertEqual(handoff["workflow_cookbook"]["items"][0]["priority"], "P0")
-        self.assertEqual(handoff["manual_bb_test_harness"]["requirements"][0]["requirement_id"], "REQ-001")
-        self.assertEqual(handoff["code_to_gate"]["contracts"][0]["gate_policy"], "hard_gate")
+        self.assertEqual(handoff["manual_bb_test_harness"]["requirements"][0]["requirement_id"], "rand:REQ-001")
+        self.assertEqual(handoff["code_to_gate"]["contracts"][0]["gate_policy_proposal"]["proposal"], "hard_gate")
         self.assertEqual(handoff["tracker_bridge"]["issues"][0]["labels"], ["rand", "requirements", "kano:must_be"])
+
+    def test_shadow_handoff_records_without_sending(self) -> None:
+        handoff = build_downstream_handoff({"requirements_packet": {"schema_version": SCHEMA_VERSION, "requirements": []}}, "run-1", mode="shadow")
+
+        self.assertIsNotNone(handoff)
+        assert handoff is not None
+        self.assertEqual(handoff["status"], "shadow")
+        self.assertTrue(handoff["delivery"]["recorded"])
+        self.assertFalse(handoff["delivery"]["sent"])
+
+    def test_live_handoff_records_transport_result(self) -> None:
+        def transport(payload: dict[str, object]) -> dict[str, object]:
+            self.assertEqual(payload["handoff_id"], "rand:downstream-run-1")
+            return {
+                "sent": True,
+                "success": True,
+                "destination_verdict": "accepted",
+                "accepted_by": "tracker-bridge",
+                "response_ref": "tracker:sync-1",
+            }
+
+        handoff = build_downstream_handoff(
+            {"requirements_packet": {"schema_version": SCHEMA_VERSION, "requirements": []}},
+            "run-1",
+            mode="live",
+            transport=transport,
+        )
+
+        self.assertIsNotNone(handoff)
+        assert handoff is not None
+        self.assertTrue(handoff["delivery"]["sent"])
+        self.assertTrue(handoff["delivery"]["success"])
+        self.assertEqual(handoff["delivery"]["destination_verdict"], "accepted")
 
 
 class ReviewToolsTests(unittest.TestCase):
@@ -259,6 +299,21 @@ class MetricsTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (run_dir / "downstream_handoff.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": SCHEMA_VERSION,
+                        "handoff_id": "rand:downstream-run-1",
+                        "status": "live",
+                        "delivery": {
+                            "mode": "live",
+                            "success": False,
+                            "destination_verdict": "rejected",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
             state = root / "state"
             state.mkdir()
             (state / "operations-state.json").write_text(
@@ -280,6 +335,10 @@ class MetricsTests(unittest.TestCase):
             self.assertEqual(metrics["pending_notification_count"], 1)
             self.assertEqual(metrics["duplicate_suppression_count"], 1)
             self.assertEqual(metrics["tracker_sync_failure_count"], 1)
+            self.assertEqual(metrics["downstream_handoff_count"], 1)
+            self.assertEqual(metrics["downstream_handoff_mode_counts"]["live"], 1)
+            self.assertEqual(metrics["downstream_handoff_live_failure_count"], 1)
+            self.assertEqual(metrics["downstream_handoff_destination_verdict_counts"]["rejected"], 1)
 
 
 if __name__ == "__main__":

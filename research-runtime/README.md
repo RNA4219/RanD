@@ -137,7 +137,7 @@ state ファイルは atomic write で更新します。途中失敗で壊れた
 
 KanoMode は、狩野モデルそのものを実施するものではなく、狩野モデルの品質分類を参照してネット証跡から要求候補を仮分類する実行モードです。正式なアンケートではなく、収集済み evidence や fixture evidence を要求定義向けの artifact に変換します。通常の research chain を壊さず、`research -> insight -> gate -> sync -> notify` の流れに追加 artifact を載せます。
 
-Discovery mode では、complaints / praise / compare / expectation などのネット上の信号をもとに要件候補を分類し、`requirements_packet.json` を生成します。特に `performance` は一元的品質をネット経由で疑似再現する分類で、競合比較、速度、精度、手間、価格など「良いほど満足が上がる」反応の束から推定します。この packet は、要求文、KPI、受け入れ条件、リスク、手動 BB 観点、downstream hook、gate policy を含みます。
+Discovery mode では、complaints / praise / compare / expectation などのネット上の信号をもとに要件候補を分類し、`requirements_packet.json` を生成します。特に `performance` は一元的品質をネット経由で疑似再現する分類で、競合比較、速度、精度、手間、価格など「良いほど満足が上がる」反応の束から推定します。この packet は、要求文、KPI、受け入れ条件、リスク、手動 BB 観点、downstream hook、gate policy proposal、QEG policyHash 参照を含みます。
 
 Audit mode では、既存要件定義を監査対象として読み、各要件を Kano参照の仮分類、検収可能性、実装整合性、残リスクで評価します。結果は `requirements_audit_packet.json` に保存し、Requirement Definition Gate の `go / conditional_go / no_go` 判定として扱います。
 
@@ -150,7 +150,7 @@ KanoMode discovery preset では、上記に加えて次を保存します。
 - `kano.json`
   - evidence cluster、Kano参照の仮分類、persona votes、confidence、bias_note、kill_condition
 - `requirements_packet.json`
-  - requirements、KPI、acceptance、risks、downstream_hooks、gate_policy
+  - requirements、KPI、acceptance、risks、downstream_hooks、gate_policy_proposal、qeg_policy_hash_ref
 
 KanoMode audit preset では、上記に加えて次を保存します。
 
@@ -160,7 +160,7 @@ KanoMode audit preset では、上記に加えて次を保存します。
   - 既存要件ごとの `testability`, `implementation_alignment`, `issues`, `suggested_action`, `gate_verdict`
   - `gate_summary` に `go / conditional_go / no_go` の分布と overall assessment
 
-KanoMode の packet 生成時は追加で `downstream_handoff.json` を保存します。これは `requirements_packet.json` または `requirements_audit_packet.json` を、`workflow-cookbook` の Task Seed、`manual-bb-test-harness` のテスト観点、`code-to-gate` の phase contract、`tracker-bridge-materials` の dry-run issue へ分解した handoff artifact です。実送信は行わず、pilot / review 用の dry-run 契約として扱います。
+KanoMode の packet 生成時は追加で `downstream_handoff.json` を保存します。これは `requirements_packet.json` または `requirements_audit_packet.json` を、`workflow-cookbook` の Task Seed、`manual-bb-test-harness` のテスト観点、`code-to-gate` の phase contract、`tracker-bridge-materials` の issue へ分解した handoff artifact です。既定は `dry_run` で実送信せず、`shadow` は送信内容を記録するだけ、`live` は明示設定時だけ送信結果を `delivery` と taskstate / metrics の観測点へ残します。
 
 ## Operations CLI
 
@@ -198,7 +198,7 @@ python -m rand_research.cli validate-artifact --path runs/<run_id>/downstream_ha
 
 `metrics` は `runs/` と `state/` から、日次 run 数、`ok / degraded / failed` 件数、`state_write_failed`、未通知数、replay 件数、duplicate suppression 件数などを集計します。
 
-`shadow-eval-template` は live/search shadow evidence を人手評価するための JSON/CSV テンプレを出力します。`tracker-review` は tracker dry-run issue に `ready_to_send=false` のレビュー台帳を付けます。`generate-task-seeds` は既定 dry-run で Task Seed draft を返し、ファイルへ書く場合だけ `--write` を付けます。
+`shadow-eval-template` は live/search shadow evidence を人手評価するための JSON/CSV テンプレを出力します。`tracker-review` は tracker issue draft に `ready_to_send=false` のレビュー台帳を付けます。`generate-task-seeds` は既定 dry-run で Task Seed draft を返し、ファイルへ書く場合だけ `--write` を付けます。
 
 ## 最小観測点
 

@@ -102,6 +102,7 @@ def upsert_task_record(
     artifacts: dict[str, str],
     summary: str,
     status_reason: list[str] | None = None,
+    observations: dict[str, Any] | None = None,
     timeout_seconds: float = 5.0,
 ) -> dict[str, Any] | None:
     """Upsert task record with file lock protection.
@@ -130,6 +131,8 @@ def upsert_task_record(
             "status_reason": status_reason or [],
         }
     )
+    if observations:
+        record.setdefault("observations", {}).update(observations)
     if save_taskstate(state_path, payload, timeout_seconds=timeout_seconds):
         return record
     return None

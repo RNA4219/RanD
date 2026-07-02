@@ -4,24 +4,90 @@ from typing import Any
 
 from rand_research.models import SCHEMA_VERSION
 
+HandoffMode = str
+DownstreamTransport = Any
 
-def build_downstream_handoff(extra_payloads: dict[str, dict[str, Any]], run_id: str) -> dict[str, Any] | None:
+VALID_HANDOFF_MODES = {"dry_run", "shadow", "live"}
+
+
+def build_downstream_handoff(
+    extra_payloads: dict[str, dict[str, Any]],
+    run_id: str,
+    mode: HandoffMode = "dry_run",
+    transport: DownstreamTransport | None = None,
+) -> dict[str, Any] | None:
     packet = extra_payloads.get("requirements_packet")
     audit_packet = extra_payloads.get("requirements_audit_packet")
     if not packet and not audit_packet:
         return None
+    handoff_mode = mode if mode in VALID_HANDOFF_MODES else "dry_run"
 
-    return {
+    handoff = {
         "schema_version": SCHEMA_VERSION,
-        "handoff_id": f"downstream-{run_id}",
+        "handoff_id": _rand_id(f"downstream-{run_id}"),
         "mode": "requirements_packet" if packet else "requirements_audit_packet",
         "workflow_cookbook": _task_seed_handoff(packet, audit_packet),
         "manual_bb_test_harness": _manual_bb_handoff(packet, audit_packet),
         "code_to_gate": _code_to_gate_handoff(packet, audit_packet),
         "tracker_bridge": _tracker_handoff(packet, audit_packet),
-        "status": "dry_run",
+        "status": handoff_mode,
+        "delivery": _delivery_observation(handoff_mode),
         "error": None,
     }
+    handoff["delivery"] = _apply_delivery_mode(handoff, handoff_mode, transport)
+    return handoff
+
+
+def _rand_id(local_id: str) -> str:
+    return local_id if local_id.startswith("rand:") else f"rand:{local_id}"
+
+
+def _delivery_observation(mode: str) -> dict[str, Any]:
+    return {
+        "mode": mode,
+        "attempted": False,
+        "sent": False,
+        "success": None,
+        "destination": "tracker_bridge",
+        "destination_verdict": None,
+        "error": None,
+    }
+
+
+def _apply_delivery_mode(
+    handoff: dict[str, Any],
+    mode: str,
+    transport: DownstreamTransport | None,
+) -> dict[str, Any]:
+    observation = _delivery_observation(mode)
+    if mode == "dry_run":
+        observation["recorded"] = False
+        return observation
+    if mode == "shadow":
+        observation["recorded"] = True
+        observation["shadow_artifact"] = "downstream_handoff.json"
+        return observation
+
+    observation["attempted"] = True
+    if transport is None:
+        observation["success"] = False
+        observation["error"] = "live mode requires an explicit downstream transport"
+        return observation
+
+    try:
+        result = transport(handoff)
+    except Exception as exc:
+        observation["success"] = False
+        observation["error"] = str(exc)
+        return observation
+
+    observation["sent"] = bool(result.get("sent", False))
+    observation["success"] = bool(result.get("success", observation["sent"]))
+    observation["destination_verdict"] = result.get("destination_verdict")
+    observation["accepted_by"] = result.get("accepted_by")
+    observation["response_ref"] = result.get("response_ref")
+    observation["error"] = result.get("error")
+    return observation
 
 
 def _task_seed_handoff(packet: dict[str, Any] | None, audit_packet: dict[str, Any] | None) -> dict[str, Any]:
@@ -92,7 +158,8 @@ def _code_to_gate_handoff(packet: dict[str, Any] | None, audit_packet: dict[str,
             "contracts": [
                 {
                     "requirement_id": requirement.get("requirement_id"),
-                    "gate_policy": requirement.get("gate_policy"),
+                    "gate_policy_proposal": requirement.get("gate_policy_proposal"),
+                    "qeg_policy_hash_ref": requirement.get("gate_policy_proposal", {}).get("policyHashRef"),
                     "kpi": requirement.get("kpi", []),
                     "risks": requirement.get("risks", []),
                     "kill_condition": requirement.get("kill_condition"),
@@ -139,7 +206,7 @@ def _issue_body(item: dict[str, Any]) -> str:
         "",
         item.get("statement") or item.get("original_text") or "",
         "",
-        f"Gate: {item.get('gate_policy') or item.get('gate_verdict') or 'n/a'}",
+        f"Gate Proposal: {_policy_proposal_label(item) or item.get('gate_verdict') or 'n/a'}",
         f"Confidence: {item.get('confidence', 'n/a')}",
     ]
     return "\n".join(lines).strip()
@@ -152,3 +219,12 @@ def _issue_labels(item: dict[str, Any]) -> list[str]:
     if item.get("gate_verdict"):
         labels.append(f"gate:{item['gate_verdict']}")
     return labels
+
+
+def _policy_proposal_label(item: dict[str, Any]) -> str | None:
+    proposal = item.get("gate_policy_proposal")
+    if isinstance(proposal, dict):
+        return proposal.get("proposal")
+    if isinstance(proposal, str):
+        return proposal
+    return None

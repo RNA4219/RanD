@@ -120,11 +120,11 @@ KanoMode preset では、通常の 8 artifact に加えて次を保存します�
 - `kano.json`
   - evidence cluster、Kano参照の仮分類、persona votes、confidence、bias_note、kill_condition を保持します。
 - `requirements_packet.json`
-  - discovery mode の主契約です。requirements、KPI、acceptance、risks、downstream_hooks、gate_policy を保持します。
+  - discovery mode の主契約です。requirements、KPI、acceptance、risks、downstream_hooks、gate_policy_proposal、QEG policyHash 参照を保持します。
 - `requirements_audit_packet.json`
   - audit mode の主契約です。既存要件ごとの Kano参照の再分類、testability、implementation_alignment、issues、suggested_action、gate verdict、gate_summary を保持します。
 - `downstream_handoff.json`
-  - discovery / audit packet を Task Seed、manual BB 観点、code-to-gate contract、tracker dry-run issue へ分解した pilot 用 handoff artifact です。実送信は行いません。
+  - discovery / audit packet を Task Seed、manual BB 観点、code-to-gate contract、tracker issue へ分解した pilot 用 handoff artifact です。既定は dry_run で、shadow は送信内容を記録するだけ、live は明示設定時だけ送信結果を delivery 観測点へ残します。
 
 `kano_requirements_hybrid` には live/search shadow adapter があります。既定では無効で、`RAND_KANO_SHADOW_SEARCH=1` を設定した場合だけ検索 URL から evidence を収集します。live evidence は shadow / pilot 用であり、通常検収は fixture / cached corpus を正本にします。
 
