@@ -1,21 +1,20 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from rand_research.io_utils import atomic_write_text, with_file_lock
-from rand_research.models import ExecutionContext, SCHEMA_VERSION
-
+from rand_research.io_utils import atomic_write_text, locked_read_json, locked_update_json, with_file_lock
+from rand_research.models import SCHEMA_VERSION, ExecutionContext
 
 DONE_STATUSES = {"done", "archived"}
 
 
 def load_taskstate(state_path: Path) -> dict[str, Any]:
-    if not state_path.exists():
-        return {"schema_version": SCHEMA_VERSION, "tasks": []}
-    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload = locked_read_json(
+        state_path, lambda: {"schema_version": SCHEMA_VERSION, "tasks": []}
+    )
     payload.setdefault("schema_version", SCHEMA_VERSION)
     payload.setdefault("tasks", [])
     return payload
@@ -48,9 +47,9 @@ def save_taskstate_unsafe(state_path: Path, payload: dict[str, Any]) -> None:
 
 
 def load_memx_journal(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {"schema_version": SCHEMA_VERSION, "entries": []}
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = locked_read_json(
+        path, lambda: {"schema_version": SCHEMA_VERSION, "entries": []}
+    )
     payload.setdefault("schema_version", SCHEMA_VERSION)
     payload.setdefault("entries", [])
     return payload
@@ -94,7 +93,7 @@ def build_execution_context(
     )
 
 
-def upsert_task_record(
+def legacy_upsert_task_record(
     state_path: Path,
     run_id: str,
     preset: str,
@@ -111,7 +110,7 @@ def upsert_task_record(
     """
     payload = load_taskstate(state_path)
     records = payload.setdefault("tasks", [])
-    now = datetime.utcnow().isoformat() + "Z"
+    now = datetime.now(timezone.utc).isoformat()
     task_id = f"task-{run_id}"
     record = next((item for item in records if item["task_id"] == task_id), None)
     if record is None:
@@ -159,3 +158,51 @@ def _memory_digest(entry: dict[str, Any]) -> dict[str, Any]:
 
 def _sort_key(value: str | None) -> str:
     return value or ""
+
+
+def upsert_task_record(
+    state_path: Path,
+    run_id: str,
+    preset: str,
+    status: str,
+    artifacts: dict[str, str],
+    summary: str,
+    status_reason: list[str] | None = None,
+    observations: dict[str, Any] | None = None,
+    timeout_seconds: float = 10.0,
+) -> dict[str, Any]:
+    """Upsert one task while holding the lock across read, update, and write."""
+
+    def update(payload: dict[str, Any]) -> dict[str, Any]:
+        payload.setdefault("schema_version", SCHEMA_VERSION)
+        records = payload.setdefault("tasks", [])
+        now = datetime.now(timezone.utc).isoformat()
+        task_id = f"task-{run_id}"
+        record = next((item for item in records if item.get("task_id") == task_id), None)
+        if record is None:
+            record = {
+                "task_id": task_id,
+                "run_id": run_id,
+                "preset": preset,
+                "created_at": now,
+            }
+            records.append(record)
+        record.update(
+            {
+                "status": status,
+                "updated_at": now,
+                "artifacts": artifacts,
+                "summary": summary,
+                "status_reason": status_reason or [],
+            }
+        )
+        if observations:
+            record.setdefault("observations", {}).update(observations)
+        return record
+
+    return locked_update_json(
+        state_path,
+        lambda: {"schema_version": SCHEMA_VERSION, "tasks": []},
+        update,
+        timeout_seconds=timeout_seconds,
+    )

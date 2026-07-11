@@ -5,9 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from rand_research import integrations
-from rand_research.models import NormalizedItem, SCHEMA_VERSION
-from rand_research import sync_writers
+from rand_research import integrations, sync_writers
+from rand_research.models import SCHEMA_VERSION, NormalizedItem
 
 
 class IntegrationsTests(unittest.TestCase):
@@ -76,7 +75,7 @@ class IntegrationsTests(unittest.TestCase):
             'os.environ',
             {
                 'RAND_INSIGHT_API_URL': 'https://api.example.test/insight',
-                'RAND_INSIGHT_SUBAGENT_CMD': 'codex-subagent insight',
+                'RAND_INSIGHT_SUBAGENT_ARGV': '["codex-subagent", "insight"]',
             },
             clear=False,
         ), patch.object(integrations, 'ensure_repo_paths'), patch.object(integrations, 'load_env_from_peer_repos'), patch.object(
@@ -89,6 +88,8 @@ class IntegrationsTests(unittest.TestCase):
         self.assertEqual(payload['status'], 'ok')
         self.assertEqual(payload['mode'], 'insight-subagent')
         self.assertIn('api_failed', json.loads(run_mock.call_args.kwargs['input'])['fallback_cause'])
+        self.assertEqual(run_mock.call_args.args[0], ['codex-subagent', 'insight'])
+        self.assertFalse(run_mock.call_args.kwargs['shell'])
 
     def test_run_gate_marks_degraded_when_nested_run_fails(self) -> None:
         fake_gate = Mock()
@@ -167,7 +168,7 @@ class IntegrationsTests(unittest.TestCase):
             'os.environ',
             {
                 'RAND_GATE_API_URL': 'https://api.example.test/gate',
-                'RAND_GATE_SUBAGENT_CMD': 'codex-subagent gate',
+                'RAND_GATE_SUBAGENT_ARGV': '["codex-subagent", "gate"]',
             },
             clear=False,
         ), patch.object(integrations, 'ensure_repo_paths'), patch.object(integrations, 'load_env_from_peer_repos'), patch.object(
@@ -179,7 +180,10 @@ class IntegrationsTests(unittest.TestCase):
 
         self.assertEqual(payload['status'], 'ok')
         self.assertEqual(payload['mode'], 'gate-subagent')
+        self.assertEqual(run_mock.call_args.args[0], ['codex-subagent', 'gate'])
+        self.assertFalse(run_mock.call_args.kwargs['shell'])
         self.assertIn('api_failed', json.loads(run_mock.call_args.kwargs['input'])['fallback_cause'])
+
 
     def test_load_log_backfills_schema_version(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -203,9 +207,9 @@ class IntegrationsTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            with patch('rand_research.sync_writers.atomic_write_text') as atomic_write:
-                memx_entry = integrations.write_memx_journal(root / 'memx.json', 'run-1', 'paper_arxiv_ai_recent', [item], {})
-                tracker_event = integrations.write_tracker_sync(
+            with patch('rand_research.io_utils.atomic_write_text') as atomic_write:
+                memx_entry = sync_writers.write_memx_journal(root / 'memx.json', 'run-1', 'paper_arxiv_ai_recent', [item], {})
+                tracker_event = sync_writers.write_tracker_sync(
                     root / 'tracker.json',
                     'run-1',
                     'paper_arxiv_ai_recent',
@@ -221,6 +225,35 @@ class IntegrationsTests(unittest.TestCase):
             self.assertEqual(atomic_write.call_args_list[0].args[0], root / 'memx.json')
             self.assertEqual(atomic_write.call_args_list[1].args[0], root / 'tracker.json')
 
+
+    def test_legacy_shell_subagent_requires_opt_in_and_is_degraded(self) -> None:
+        completed = SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps({"status": "ok", "results": []}),
+            stderr="",
+        )
+        with patch.dict(
+            "os.environ",
+            {
+                "RAND_INSIGHT_SUBAGENT_CMD": "codex-subagent insight",
+                "RAND_ALLOW_SHELL_SUBAGENT": "1",
+            },
+            clear=True,
+        ), patch("rand_research.integrations.subprocess.run", return_value=completed) as run_mock:
+            payload = integrations._run_subagent("insight", [], "fallback")
+
+        assert payload is not None
+        self.assertEqual(payload["status"], "degraded")
+        self.assertTrue(payload["warnings"])
+        self.assertTrue(run_mock.call_args.kwargs["shell"])
+
+    def test_legacy_shell_subagent_is_ignored_without_opt_in(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {"RAND_INSIGHT_SUBAGENT_CMD": "codex-subagent insight"},
+            clear=True,
+        ):
+            self.assertIsNone(integrations._run_subagent("insight", [], "fallback"))
 
 if __name__ == '__main__':
     unittest.main()

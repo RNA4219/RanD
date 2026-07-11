@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from rand_research.io_utils import atomic_write_text, FileLock, with_file_lock
+from rand_research.io_utils import FileLock, atomic_write_text, with_file_lock
 
 
 class IoUtilsTests(unittest.TestCase):

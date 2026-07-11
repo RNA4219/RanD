@@ -107,7 +107,7 @@
     "envVar": "RAND_LOCAL_PATH_TRACKER_BRIDGE_MATERIALS",
     "remoteUrl": "https://github.com/RNA4219/tracker-bridge-materials.git",
     "installSubdir": "repos\\tracker-bridge-materials",
-    "pinnedCommit": "61f7db21884bfb078108b93f57212ab84e51afd7"
+    "pinnedCommit": "6ce0ca5d6e7e7663c5d0b4a92744d2caa1b8d00b"
   },
   {
     "name": "strategy-guided-policy-prompt",

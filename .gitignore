@@ -13,3 +13,10 @@ research-runtime/artifacts/
 research-runtime/__pycache__/
 research-runtime/**/*.pyc
 research-runtime/src/*.egg-info/
+
+research-runtime/.coverage
+research-runtime/build/
+research-runtime/dist/
+research-runtime/state/*.db
+research-runtime/state/*.lock
+research-runtime/runs/.staging-*

@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -29,7 +29,7 @@ class HeartbeatSummary:
     top_items: list[dict[str, str]]
 
     @classmethod
-    def from_report(cls, report: dict[str, Any], preset: str) -> "HeartbeatSummary":
+    def from_report(cls, report: dict[str, Any], preset: str) -> HeartbeatSummary:
         """Create summary from research report."""
         items = report.get("collected_items", [])
         state_ctx = report.get("state_context", {})

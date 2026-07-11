@@ -66,10 +66,20 @@ tasks:
           env=env,
           capture_output=True,
           text=True,
-          check=True,
       )
 
       report = json.loads(result.stdout)
+      status = report.get("status")
+      expected_code = {"ok": 0, "failed": 1, "degraded": 2}.get(status)
+      if expected_code is None or result.returncode != expected_code:
+          raise RuntimeError(
+              f"status/exit mismatch: status={status!r}, "
+              f"exit_code={result.returncode}, stderr={result.stderr}"
+          )
+      if status == "failed":
+          raise RuntimeError("RanD report status is failed")
+      if status == "degraded":
+          print("WARNING: degraded result requires review")
       state_context = report.get("state_context", {})
       output_dir = Path("{{ outputDir }}")
 
@@ -84,7 +94,8 @@ tasks:
 
       print(json.dumps({
           "preset": preset,
-          "status": report.get("status"),
+          "status": status,
+          "success": status == "ok",
           "collected_count": len(report.get("collected_items", [])),
           "open_tasks_before": len(state_context.get("before", {}).get("open_tasks", [])),
           "open_tasks_after": len(state_context.get("after", {}).get("open_tasks", [])),

@@ -48,6 +48,7 @@ def register_run_commands(subparsers: argparse._SubParsersAction[argparse.Argume
     run_once_parser = subparsers.add_parser("run-once")
     run_once_parser.add_argument("--preset", required=True)
     run_once_parser.add_argument("--max-items", type=int, default=0)
+    _add_delivery_arguments(run_once_parser)
 
     subparsers.add_parser("run-schedule")
     subparsers.add_parser("env-check")
@@ -57,23 +58,42 @@ def register_run_commands(subparsers: argparse._SubParsersAction[argparse.Argume
     heartbeat_parser.add_argument("--max-items", type=int, default=5, help="Max items to collect")
     heartbeat_parser.add_argument("--dry-run", action="store_true", help="Show what would run without executing")
     heartbeat_parser.add_argument("--summary-only", action="store_true", help="Output only summary for Misskey")
+    _add_delivery_arguments(heartbeat_parser)
 
 
-def handle_run_command(args: argparse.Namespace) -> bool:
+def _add_delivery_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--delivery-mode",
+        choices=["dry_run", "shadow", "live"],
+        default=None,
+    )
+    parser.add_argument("--confirm-live", action="store_true")
+
+def handle_run_command(args: argparse.Namespace) -> int | None:
     if args.command == "run-once":
-        result = run_once(args.preset, args.max_items or None)
+        result = run_once(
+            args.preset,
+            args.max_items or None,
+            getattr(args, "delivery_mode", None),
+            getattr(args, "confirm_live", False),
+        )
         print_json(result["report"])
-        return True
+        return status_exit_code(result["report"].get("status"))
     if args.command == "run-schedule":
         schedule = load_schedule()
         results = []
         for job in schedule.get("jobs", []):
             results.append({"job": job["name"], "result": run_once(job["preset"])["report"]})
         print_json(results)
-        return True
+        statuses = [entry["result"].get("status") for entry in results]
+        if "failed" in statuses:
+            return 1
+        if "degraded" in statuses:
+            return 2
+        return 0
     if args.command == "env-check":
         print_json(check_dependencies())
-        return True
+        return 0
     if args.command == "heartbeat":
         preset = args.preset or select_preset_by_time()
 
@@ -87,9 +107,22 @@ def handle_run_command(args: argparse.Namespace) -> bool:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
-            return True
+            return 0
 
-        result = run_once(preset, args.max_items)
+        result = run_once(
+            preset,
+            args.max_items,
+            getattr(args, "delivery_mode", None),
+            getattr(args, "confirm_live", False),
+        )
         print_json(build_summary(result["report"], preset) if args.summary_only else result["report"])
-        return True
-    return False
+        return status_exit_code(result["report"].get("status"))
+    return None
+
+
+def status_exit_code(status: str | None) -> int:
+    if status == "ok":
+        return 0
+    if status == "degraded":
+        return 2
+    return 1

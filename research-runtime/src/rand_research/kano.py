@@ -4,7 +4,7 @@ from collections import Counter
 from typing import Any
 
 from rand_research.fetchers import _slugify
-from rand_research.models import NormalizedItem, SCHEMA_VERSION
+from rand_research.models import SCHEMA_VERSION, NormalizedItem
 
 KANO_TYPES = {"must_be", "performance", "attractive", "indifferent", "reverse", "questionable"}
 

@@ -5,11 +5,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from rand_research.io_utils import atomic_write_text
+from rand_research.io_utils import atomic_write_text, locked_read_json, locked_update_json
 from rand_research.models import SCHEMA_VERSION
 
 
-def load_operations_state(path: Path) -> dict[str, Any]:
+def legacy_load_operations_state(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {"schema_version": SCHEMA_VERSION, "dedupe_keys": [], "notifications": [], "replays": []}
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -20,13 +20,13 @@ def load_operations_state(path: Path) -> dict[str, Any]:
     return payload
 
 
-def save_operations_state(path: Path, payload: dict[str, Any]) -> None:
+def legacy_save_operations_state(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload.setdefault("schema_version", SCHEMA_VERSION)
     atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
 
 
-def record_notification_outbox(
+def legacy_record_notification_outbox(
     path: Path,
     run_id: str,
     preset: str,
@@ -75,7 +75,7 @@ def build_notification_text(report: dict[str, Any], max_length: int = 3000) -> s
     return text if len(text) <= max_length else text[: max_length - 3] + "..."
 
 
-def plan_replay(taskstate_path: Path, operations_path: Path, task_id: str | None, trace_id: str | None = None) -> dict[str, Any]:
+def legacy_plan_replay(taskstate_path: Path, operations_path: Path, task_id: str | None, trace_id: str | None = None) -> dict[str, Any]:
     state = json.loads(taskstate_path.read_text(encoding="utf-8")) if taskstate_path.exists() else {"tasks": []}
     task = _find_task(state.get("tasks", []), task_id, trace_id)
     if task is None:
@@ -132,7 +132,7 @@ def build_outbox_plan(operations_path: Path, limit: int = 20) -> dict[str, Any]:
     }
 
 
-def mark_notification_attempt(
+def legacy_mark_notification_attempt(
     operations_path: Path,
     notification_id: str,
     status: str,
@@ -208,3 +208,173 @@ def _resume_stage(task: dict[str, Any]) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _empty_operations_state() -> dict[str, Any]:
+    return {"schema_version": SCHEMA_VERSION, "dedupe_keys": [], "notifications": [], "replays": []}
+
+
+def _normalize_operations_state(payload: dict[str, Any]) -> dict[str, Any]:
+    payload.setdefault("schema_version", SCHEMA_VERSION)
+    payload.setdefault("dedupe_keys", [])
+    payload.setdefault("notifications", [])
+    payload.setdefault("replays", [])
+    return payload
+
+
+def load_operations_state(path: Path) -> dict[str, Any]:
+    return _normalize_operations_state(locked_read_json(path, _empty_operations_state))
+
+
+def save_operations_state(path: Path, payload: dict[str, Any]) -> None:
+    def replace(current: dict[str, Any]) -> None:
+        current.clear()
+        current.update(_normalize_operations_state(payload))
+
+    locked_update_json(path, _empty_operations_state, replace)
+
+
+def record_notification_outbox(
+    path: Path,
+    run_id: str,
+    preset: str,
+    report: dict[str, Any],
+    artifact_paths: dict[str, str],
+) -> dict[str, Any]:
+    """Compatibility helper for callers that do not stage an artifact commit."""
+    dedupe_key = f"note:{preset}:{run_id}"
+
+    def update(payload: dict[str, Any]) -> dict[str, Any]:
+        _normalize_operations_state(payload)
+        duplicate = dedupe_key in payload["dedupe_keys"]
+        notification = {
+            "schema_version": SCHEMA_VERSION,
+            "notification_id": f"note-{run_id}",
+            "run_id": run_id,
+            "preset": preset,
+            "dedupe_key": dedupe_key,
+            "status": "duplicate_suppressed" if duplicate else "pending",
+            "recorded_at": _now(),
+            "reply_text": build_notification_text(report),
+            "artifacts": artifact_paths,
+            "attempts": 0,
+            "error": None,
+        }
+        if not duplicate:
+            payload["dedupe_keys"].append(dedupe_key)
+            payload["notifications"].append(notification)
+        return notification
+
+    return locked_update_json(path, _empty_operations_state, update)
+
+def reserve_notification_outbox(
+    path: Path,
+    run_id: str,
+    preset: str,
+    report: dict[str, Any],
+    artifact_paths: dict[str, str],
+) -> dict[str, Any]:
+    dedupe_key = f"note:{preset}:{run_id}"
+
+    def update(payload: dict[str, Any]) -> dict[str, Any]:
+        _normalize_operations_state(payload)
+        duplicate = dedupe_key in payload["dedupe_keys"]
+        notification = {
+            "schema_version": SCHEMA_VERSION,
+            "notification_id": f"note-{run_id}",
+            "run_id": run_id,
+            "preset": preset,
+            "dedupe_key": dedupe_key,
+            "status": "duplicate_suppressed" if duplicate else "preparing",
+            "recorded_at": _now(),
+            "reply_text": build_notification_text(report),
+            "artifacts": artifact_paths,
+            "attempts": 0,
+            "error": None,
+        }
+        if not duplicate:
+            payload["dedupe_keys"].append(dedupe_key)
+            payload["notifications"].append(notification)
+        return notification
+
+    return locked_update_json(path, _empty_operations_state, update)
+
+
+def transition_notification_outbox(
+    path: Path,
+    run_id: str,
+    status: str,
+    error: str | None = None,
+) -> dict[str, Any]:
+    if status not in {"pending", "canceled"}:
+        raise ValueError(f"unsupported outbox transition: {status}")
+
+    def update(payload: dict[str, Any]) -> dict[str, Any]:
+        _normalize_operations_state(payload)
+        for notification in payload["notifications"]:
+            if notification.get("run_id") == run_id:
+                if notification.get("status") != "preparing":
+                    return notification
+                notification["status"] = status
+                notification["error"] = error
+                notification["recorded_at"] = _now()
+                return notification
+        raise KeyError(f"notification reservation not found: {run_id}")
+
+    return locked_update_json(path, _empty_operations_state, update)
+def plan_replay(
+    taskstate_path: Path,
+    operations_path: Path,
+    task_id: str | None,
+    trace_id: str | None = None,
+) -> dict[str, Any]:
+    state = locked_read_json(taskstate_path, lambda: {"tasks": []})
+    task = _find_task(state.get("tasks", []), task_id, trace_id)
+    if task is None:
+        plan = {
+            "schema_version": SCHEMA_VERSION,
+            "status": "failed",
+            "error": "task_not_found",
+            "task_id": task_id,
+            "trace_id": trace_id,
+        }
+    else:
+        plan = {
+            "schema_version": SCHEMA_VERSION,
+            "status": "planned",
+            "error": None,
+            "task_id": task.get("task_id"),
+            "run_id": task.get("run_id"),
+            "preset": task.get("preset"),
+            "resume_from": _resume_stage(task),
+            "artifacts": task.get("artifacts", {}),
+            "planned_at": _now(),
+        }
+
+    def append(payload: dict[str, Any]) -> None:
+        _normalize_operations_state(payload)
+        payload["replays"].append(plan)
+
+    locked_update_json(operations_path, _empty_operations_state, append)
+    return plan
+
+
+def mark_notification_attempt(
+    operations_path: Path,
+    notification_id: str,
+    status: str,
+    error: str | None = None,
+) -> dict[str, Any]:
+    def update(payload: dict[str, Any]) -> dict[str, Any]:
+        _normalize_operations_state(payload)
+        for notification in payload["notifications"]:
+            if notification.get("notification_id") != notification_id:
+                continue
+            notification["status"] = status
+            notification["attempts"] = int(notification.get("attempts", 0)) + 1
+            notification["last_attempt_at"] = _now()
+            notification["error"] = error
+            return notification
+        raise KeyError(f"notification not found: {notification_id}")
+
+    return locked_update_json(operations_path, _empty_operations_state, update)

@@ -2,8 +2,8 @@ import json
 import unittest
 from pathlib import Path
 
-from rand_research.kano import build_audit_artifacts, build_kano_artifacts, _promotable
-from rand_research.models import NormalizedItem, SCHEMA_VERSION
+from rand_research.kano import _promotable, build_audit_artifacts, build_kano_artifacts
+from rand_research.models import SCHEMA_VERSION, NormalizedItem
 
 
 class KanoTests(unittest.TestCase):

@@ -8,10 +8,28 @@ from rand_research.artifact_schema import validate_artifact_path
 from rand_research.config import load_heartbeat_config
 from rand_research.metrics import collect_metrics
 from rand_research.models import SCHEMA_VERSION
+from rand_research.recovery import reconcile_runtime_state
 
 
 def evaluate_pilot_readiness(runtime_root: Path) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
+    try:
+        reconciliation = reconcile_runtime_state(
+            runtime_root / "runs",
+            runtime_root / "state" / "agent-taskstate.json",
+            runtime_root / "state" / "operations-state.json",
+        )
+        if reconciliation["taskstate"] or reconciliation["notifications"]:
+            checks.append(
+                _check(
+                    "state_reconciliation",
+                    "warn",
+                    "committed run state was repaired and requires review",
+                    reconciliation,
+                )
+            )
+    except Exception as exc:
+        checks.append(_check("state_reconciliation", "fail", f"state reconciliation failed: {exc}"))
     latest_run = _latest_run_dir(runtime_root / "runs")
     metrics = collect_metrics(runtime_root)
 

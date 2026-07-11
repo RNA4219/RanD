@@ -117,27 +117,32 @@ tasks:
                   text=True,
                   timeout=600,
               )
-              if result.returncode == 0:
-                  report = json.loads(result.stdout)
+              report = json.loads(result.stdout)
+              status = report.get("status")
+              expected_code = {"ok": 0, "failed": 1, "degraded": 2}.get(status)
+              if expected_code is None or result.returncode != expected_code:
                   results.append({
                       "preset": preset,
-                      "success": True,
-                      "status": report.get("status"),
+                      "success": False,
+                      "status": "failed",
+                      "error": (
+                          f"status/exit mismatch: status={status!r}, "
+                          f"exit_code={result.returncode}, stderr={result.stderr}"
+                      ),
+                  })
+              else:
+                  results.append({
+                      "preset": preset,
+                      "success": status == "ok",
+                      "status": status,
+                      "warning": "degraded result requires review" if status == "degraded" else None,
                       "collected_count": len(report.get("collected_items", [])),
                       "report": report,
                   })
                   (reports_dir / f"{preset}.json").write_text(
                       json.dumps(report, ensure_ascii=False, indent=2),
                       encoding="utf-8",
-                  )
-              else:
-                  results.append({
-                      "preset": preset,
-                      "success": False,
-                      "status": "failed",
-                      "error": result.stderr,
-                  })
-          except subprocess.TimeoutExpired:
+                  )          except subprocess.TimeoutExpired:
               results.append({
                   "preset": preset,
                   "success": False,
@@ -155,7 +160,13 @@ tasks:
       with open(output_dir / "research_results.json", "w", encoding="utf-8") as f:
           json.dump(results, f, ensure_ascii=False, indent=2)
 
+      failed = [item for item in results if item.get("status") == "failed"]
+      degraded = [item for item in results if item.get("status") == "degraded"]
+      if degraded:
+          print(f"WARNING: {len(degraded)} degraded result(s) require review")
       print(f"Research completed: {len([r for r in results if r['success']])}/{len(results)} successful")
+      if failed:
+          raise RuntimeError(f"{len(failed)} research run(s) failed")
 
   - id: check-stuck-tasks
     type: io.kestra.plugin.scripts.python.Script

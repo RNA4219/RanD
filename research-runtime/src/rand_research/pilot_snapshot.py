@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from rand_research.artifact_schema import build_artifact_envelope, validate_artifact_payload
 from rand_research.io_utils import atomic_write_text
 from rand_research.metrics import collect_metrics
 from rand_research.models import SCHEMA_VERSION
@@ -17,10 +18,8 @@ def build_pilot_snapshot(runtime_root: Path, outbox_limit: int = 20) -> dict[str
     pilot_check = evaluate_pilot_readiness(runtime_root)
     outbox_plan = build_outbox_plan(runtime_root / "state" / "operations-state.json", outbox_limit)
     metrics = collect_metrics(runtime_root)
-    return {
-        "schema_version": SCHEMA_VERSION,
+    payload = {
         "snapshot_id": _snapshot_id(captured_at),
-        "type": "pilot_snapshot",
         "captured_at": captured_at,
         "status": pilot_check.get("status", "no_go"),
         "latest_run_id": pilot_check.get("latest_run_id"),
@@ -29,7 +28,18 @@ def build_pilot_snapshot(runtime_root: Path, outbox_limit: int = 20) -> dict[str
         "metrics": metrics,
         "review_required": pilot_check.get("status") != "go" or outbox_plan.get("pending_count", 0) > 0,
     }
-
+    latest_run_id = payload.get("latest_run_id")
+    snapshot = build_artifact_envelope(
+        payload,
+        artifact_id=f"rand:artifact:{payload['snapshot_id']}:pilot_snapshot",
+        artifact_type="pilot_snapshot",
+        created_at=captured_at,
+        input_refs=[f"rand:run:{latest_run_id}"] if latest_run_id else [],
+        source_refs=[],
+        downstream_allowed_uses=["review", "pilot_acceptance"],
+    )
+    _require_valid(snapshot, "pilot_snapshot")
+    return snapshot
 
 def write_pilot_snapshot(runtime_root: Path, output_path: Path | None = None, outbox_limit: int = 20) -> dict[str, Any]:
     snapshot = build_pilot_snapshot(runtime_root, outbox_limit)
@@ -101,10 +111,8 @@ def build_pilot_review(
 ) -> dict[str, Any]:
     if decision not in {"accept", "accept_with_review", "hold", "block"}:
         raise ValueError(f"unsupported pilot review decision: {decision}")
-    return {
-        "schema_version": SCHEMA_VERSION,
+    payload = {
         "review_id": f"pilot-review-{snapshot.get('snapshot_id', 'unknown')}",
-        "type": "pilot_review",
         "reviewed_at": _now(),
         "reviewer": reviewer,
         "decision": decision,
@@ -117,8 +125,18 @@ def build_pilot_review(
         },
         "required_followups": _required_followups(snapshot),
         "review_required": decision in {"accept_with_review", "hold", "block"},
+        "status": decision,
     }
-
+    review = build_artifact_envelope(
+        payload,
+        artifact_id=f"rand:artifact:{payload['review_id']}:pilot_review",
+        artifact_type="pilot_review",
+        input_refs=[str(snapshot.get("id") or snapshot_path)],
+        source_refs=[],
+        downstream_allowed_uses=["pilot_acceptance", "audit"],
+    )
+    _require_valid(review, "pilot_review")
+    return review
 
 def _required_followups(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     followups: list[dict[str, Any]] = []
@@ -161,3 +179,9 @@ def _snapshot_id(captured_at: str) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _require_valid(payload: dict[str, Any], artifact_type: str) -> None:
+    validation = validate_artifact_payload(payload, artifact_type)
+    if validation["status"] != "ok":
+        raise ValueError(f"{artifact_type} artifact validation failed: {validation['issues']}")
