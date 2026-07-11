@@ -9,7 +9,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 from uuid import uuid4
 
 T = TypeVar("T")
@@ -209,7 +209,8 @@ def _pid_is_alive(pid: int) -> bool:
 
         process_query_limited_information = 0x1000
         still_active = 259
-        handle = ctypes.windll.kernel32.OpenProcess(
+        kernel32 = cast(Any, ctypes).windll.kernel32
+        handle = kernel32.OpenProcess(
             process_query_limited_information,
             False,
             pid,
@@ -218,11 +219,11 @@ def _pid_is_alive(pid: int) -> bool:
             return False
         try:
             exit_code = ctypes.c_ulong()
-            if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
                 return False
             return exit_code.value == still_active
         finally:
-            ctypes.windll.kernel32.CloseHandle(handle)
+            kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except OSError:
