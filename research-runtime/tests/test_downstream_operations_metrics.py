@@ -13,7 +13,12 @@ from rand_research.operations import (
     plan_replay,
     record_notification_outbox,
 )
-from rand_research.review_tools import build_shadow_eval_template, build_tracker_review, generate_task_seed_drafts, render_shadow_eval_csv
+from rand_research.review_tools import (
+    build_shadow_eval_template,
+    build_tracker_review,
+    generate_task_seed_drafts,
+    render_shadow_eval_csv,
+)
 
 
 class DownstreamHandoffTests(unittest.TestCase):
@@ -52,6 +57,11 @@ class DownstreamHandoffTests(unittest.TestCase):
         self.assertEqual(handoff["manual_bb_test_harness"]["requirements"][0]["requirement_id"], "rand:REQ-001")
         self.assertEqual(handoff["code_to_gate"]["contracts"][0]["gate_policy_proposal"]["proposal"], "hard_gate")
         self.assertEqual(handoff["tracker_bridge"]["issues"][0]["labels"], ["rand", "requirements", "kano:must_be"])
+        issue = handoff["tracker_bridge"]["issues"][0]
+        self.assertTrue(issue["handoff_item_id"].startswith("rand:handoff-item:"))
+        repeated = build_downstream_handoff({"requirements_packet": packet}, "run-1")
+        assert repeated is not None
+        self.assertEqual(issue["handoff_item_id"], repeated["tracker_bridge"]["issues"][0]["handoff_item_id"])
 
     def test_shadow_handoff_records_without_sending(self) -> None:
         handoff = build_downstream_handoff({"requirements_packet": {"schema_version": SCHEMA_VERSION, "requirements": []}}, "run-1", mode="shadow")

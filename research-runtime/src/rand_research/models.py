@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 SCHEMA_VERSION = "1.0"
@@ -66,7 +66,7 @@ class RunMeta:
     state_context_summary: dict[str, Any] = field(default_factory=dict)
 
     def finish(self) -> None:
-        self.finished_at = datetime.utcnow().isoformat() + "Z"
+        self.finished_at = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

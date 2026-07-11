@@ -10,16 +10,27 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+from rand_research.http_utils import SOURCE_MAX_BYTES, request_bytes
 from rand_research.models import NormalizedItem
 from rand_research.paths import workspace_root
 
 
 def fetch_text(url: str, user_agent: str, timeout_seconds: int) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
-    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-        charset = response.headers.get_content_charset() or "utf-8"
-        return response.read().decode(charset, errors="replace")
-
+    response = request_bytes(
+        url,
+        headers={"User-Agent": user_agent},
+        timeout_seconds=timeout_seconds,
+        max_bytes=SOURCE_MAX_BYTES,
+        allowed_content_types={
+            "text/html",
+            "text/plain",
+            "application/rss+xml",
+            "application/atom+xml",
+            "application/xml",
+            "text/xml",
+        },
+    )
+    return response.body.decode(response.charset, errors="replace")
 
 class LinkCollector(HTMLParser):
     def __init__(self, base_url: str) -> None:

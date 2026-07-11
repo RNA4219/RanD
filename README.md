@@ -1,8 +1,10 @@
 # RanD
 
+[![CI](https://github.com/RNA4219/RanD/actions/workflows/ci.yml/badge.svg)](https://github.com/RNA4219/RanD/actions/workflows/ci.yml)
+
 `RanD` は、R&D Agent アーキテクチャを「導入層」と「実行層」に分けて束ねる親リポジトリです。固定コミットで周辺 OSS を導入し、論文・AI ニュース調査をローカル実行と Kestra 実行の両方で回しながら、通常運転の正規チェーン `research -> insight -> gate -> sync -> notify` を保つ母艦として振る舞います。
 
-最新リリース: [v0.2.0](docs/releases/v0.2.0.md)
+最新リリース: [v0.3.0](docs/releases/v0.3.0.md)
 
 ## Quickstart: 5分で1回回す
 
@@ -315,8 +317,8 @@ Insight / Gate を外部 API 経由で動かす場合は、必要に応じて次
 ```bash
 export RAND_INSIGHT_API_URL="https://example.test/insight"
 export RAND_GATE_API_URL="https://example.test/gate"
-export RAND_INSIGHT_SUBAGENT_CMD="your-insight-agent-command"
-export RAND_GATE_SUBAGENT_CMD="your-gate-agent-command"
+export RAND_INSIGHT_SUBAGENT_ARGV='["your-insight-agent-command", "arg1"]'
+export RAND_GATE_SUBAGENT_ARGV='["your-gate-agent-command", "arg1"]'
 ```
 
 ## KanoMode Eval 検証状況
@@ -326,7 +328,7 @@ export RAND_GATE_SUBAGENT_CMD="your-gate-agent-command"
 検証済み:
 
 - `uv run pytest`
-  - `64 passed`
+  - 最新結果は上部の CI badge を参照
 - `uv run python -m rand_research.cli run-once --preset kano_requirements_offline_eval --max-items 5`
   - run_id `20260528-150341-856a486c`
   - `status: ok`

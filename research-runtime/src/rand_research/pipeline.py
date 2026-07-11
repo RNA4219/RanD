@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -8,20 +9,28 @@ from uuid import uuid4
 from rand_research.config import load_preset, load_runtime_config
 from rand_research.downstream import build_downstream_handoff
 from rand_research.fetchers import collect_source
-from rand_research.integrations import run_gate, run_insight, write_memx_journal, write_tracker_sync
+from rand_research.integrations import run_gate, run_insight
 from rand_research.kano import build_audit_artifacts, build_kano_artifacts
 from rand_research.models import ExecutionContext, NormalizedItem, RunMeta
-from rand_research.operations import record_notification_outbox
+from rand_research.operations import reserve_notification_outbox, transition_notification_outbox
 from rand_research.paths import workspace_root
+from rand_research.recovery import reconcile_runtime_state
 from rand_research.reports import save_run_outputs
 from rand_research.state_store import build_execution_context, upsert_task_record
+from rand_research.sync_writers import write_memx_journal, write_tracker_sync
+from rand_research.tracker_transport import TrackerBridgeTransport
 
 
-def run_once(preset_name: str, max_items_override: int | None = None) -> dict[str, Any]:
+def run_once(
+    preset_name: str,
+    max_items_override: int | None = None,
+    delivery_mode_override: str | None = None,
+    confirm_live: bool = False,
+) -> dict[str, Any]:
     runtime = load_runtime_config()
     preset = load_preset(preset_name)
     max_items = max_items_override or preset.get("max_items") or runtime["default_max_items"]
-    run_id = datetime.utcnow().strftime("%Y%m%d-%H%M%S") + "-" + uuid4().hex[:8]
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + uuid4().hex[:8]
     run_dir = workspace_root() / runtime["save_root"] / run_id
     state_path = workspace_root() / runtime["state_path"]
     memory_path = workspace_root() / runtime["memory_log_path"]
@@ -36,9 +45,17 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
         "gate": "ok",
         "memx": "ok",
         "tracker": "ok",
+        "delivery": "ok",
     }
     status_reasons: list[str] = []
     errors: list[str] = []
+
+    try:
+        reconcile_runtime_state(run_dir.parent, state_path, operations_path)
+    except Exception as exc:
+        dependency_health["state"] = "degraded"
+        status_reasons.append("state_reconciliation_failed")
+        errors.append(f"state_reconciliation_failed: {exc}")
 
     try:
         pre_state_context = build_execution_context(state_path, memory_path, preset_name)
@@ -51,7 +68,7 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
     meta = RunMeta(
         run_id=run_id,
         preset=preset_name,
-        started_at=datetime.utcnow().isoformat() + "Z",
+        started_at=datetime.now(timezone.utc).isoformat(),
         prompt_template=preset.get("prompt_template"),
         max_items=max_items,
         save_dir=str(run_dir),
@@ -149,8 +166,43 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
         extra_payloads = build_kano_artifacts(items, preset, run_id)
     elif preset.get("mode") == "kano_audit":
         extra_payloads = build_audit_artifacts(items, preset, run_id)
-    downstream_handoff_mode = preset.get("downstream_handoff_mode") or runtime.get("downstream_handoff_mode", "dry_run")
-    downstream_handoff = build_downstream_handoff(extra_payloads, run_id, mode=downstream_handoff_mode) if extra_payloads else None
+    (
+        downstream_handoff_mode,
+        downstream_transport,
+        live_configuration_error,
+        live_confirmed,
+    ) = _prepare_delivery(
+        runtime,
+        preset,
+        delivery_mode_override,
+        confirm_live,
+        run_id,
+    )
+    downstream_handoff = (
+        build_downstream_handoff(
+            extra_payloads,
+            run_id,
+            mode=downstream_handoff_mode,
+            transport=downstream_transport,
+        )
+        if extra_payloads
+        else None
+    )
+    if downstream_handoff_mode == "live" and downstream_handoff:
+        delivery = downstream_handoff.get("delivery", {})
+        if live_configuration_error:
+            delivery["error"] = live_configuration_error
+            delivery["success"] = False
+            delivery["destination_verdict"] = "failed"
+        verdict = delivery.get("destination_verdict")
+        if verdict == "degraded":
+            dependency_health["delivery"] = "degraded"
+            status_reasons.append("delivery_partial_failure")
+        elif delivery.get("success") is not True or verdict == "failed":
+            dependency_health["delivery"] = "failed"
+            status_reasons.append(
+                "live_confirmation_missing" if not live_confirmed else "delivery_failed"
+            )
     if downstream_handoff:
         extra_payloads["downstream_handoff"] = downstream_handoff
 
@@ -177,33 +229,58 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
 
     final_status = _final_status(dependency_health, status_reasons)
     task_state = {"ok": "done", "degraded": "needs_review", "failed": "failed"}[final_status]
-    task_record = _safe_task_update(
-        state_path,
-        run_id,
-        preset_name,
-        task_state,
-        artifact_paths,
-        f"{len(items)} items collected for {preset_name}",
-        status_reasons,
-        dependency_health,
-        status_reasons,
-        errors,
-        _downstream_observations(downstream_handoff),
-    )
+    task_record = {
+        "task_id": f"task-{run_id}",
+        "run_id": run_id,
+        "preset": preset_name,
+        "status": task_state,
+        "artifacts": artifact_paths,
+        "summary": f"{len(items)} items collected for {preset_name}",
+        "status_reason": _unique(status_reasons),
+        "observations": _downstream_observations(downstream_handoff),
+    }
 
     try:
         post_state_context = build_execution_context(state_path, memory_path, preset_name)
     except Exception as exc:
         post_state_context = ExecutionContext(preset=preset_name)
         dependency_health["state"] = "failed"
-        status_reasons.append("state_write_failed")
-        errors.append(f"state_write_failed: {exc}")
+        status_reasons.append("state_read_failed")
+        errors.append(f"state_read_failed: {exc}")
         final_status = _final_status(dependency_health, status_reasons)
         task_state = {"ok": "done", "degraded": "needs_review", "failed": "failed"}[final_status]
-        task_record = {
-            **task_record,
-            "status": task_state,
-            "status_reason": _unique(status_reasons),
+        task_record["status"] = task_state
+        task_record["status_reason"] = _unique(status_reasons)
+
+    reservation_report = {
+        "status": final_status,
+        "status_reason": _unique(status_reasons),
+        "run_meta": meta.to_dict(),
+        "collected_items": [item.to_dict() for item in items],
+    }
+    try:
+        operations_record = reserve_notification_outbox(
+            operations_path,
+            run_id,
+            preset_name,
+            reservation_report,
+            artifact_paths,
+        )
+    except Exception as exc:
+        dependency_health["operations"] = "degraded"
+        status_reasons.append("operations_reservation_failed")
+        errors.append(f"operations_reservation_failed: {exc}")
+        final_status = _final_status(dependency_health, status_reasons)
+        task_state = {"ok": "done", "degraded": "needs_review", "failed": "failed"}[final_status]
+        task_record["status"] = task_state
+        task_record["status_reason"] = _unique(status_reasons)
+        operations_record = {
+            "schema_version": meta.schema_version,
+            "notification_id": f"note-{run_id}",
+            "run_id": run_id,
+            "preset": preset_name,
+            "status": "failed",
+            "error": "operations_reservation_failed",
         }
 
     try:
@@ -226,13 +303,29 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
     except Exception as exc:
         dependency_health["report"] = "failed"
         status_reasons.append("report_save_failed")
+        errors.append(f"report_save_failed: {exc}")
         final_status = "failed"
+        if operations_record.get("status") == "preparing":
+            try:
+                operations_record = transition_notification_outbox(
+                    operations_path,
+                    run_id,
+                    "canceled",
+                    "report_save_failed",
+                )
+            except Exception as outbox_exc:
+                errors.append(f"operations_cancel_failed: {outbox_exc}")
+                operations_record = {
+                    **operations_record,
+                    "status": "failed",
+                    "error": "operations_cancel_failed",
+                }
         task_record = _safe_task_update(
             state_path,
             run_id,
             preset_name,
             "failed",
-            artifact_paths,
+            {},
             f"Report save failed for {preset_name}",
             _unique(status_reasons),
             dependency_health,
@@ -250,49 +343,55 @@ def run_once(preset_name: str, max_items_override: int | None = None) -> dict[st
                 "after": post_state_context.to_dict(),
             },
             "dependency_health": dependency_health,
-            "artifacts": artifact_paths,
+            "artifacts": {},
             "taskstate_refs": [task_record],
             "memx_refs": [memx_record],
             "tracker_sync_refs": [tracker_event],
             "error": str(exc),
         }
-        artifacts = artifact_paths
-        operations_record = {
-            "schema_version": meta.schema_version,
-            "notification_id": f"note-{run_id}",
-            "run_id": run_id,
-            "preset": preset_name,
-            "status": "failed",
-            "error": "report_save_failed",
-        }
-
-    if final_status != "failed" or dependency_health.get("report") == "ok":
-        try:
-            operations_record = record_notification_outbox(
-                operations_path,
-                run_id,
-                preset_name,
-                report_payload,
-                artifacts,
-            )
-        except Exception as exc:
-            operations_record = {
-                "schema_version": meta.schema_version,
-                "notification_id": f"note-{run_id}",
-                "run_id": run_id,
-                "preset": preset_name,
-                "status": "failed",
-                "error": f"operations_record_failed: {exc}",
-            }
-
+        artifacts = {}
+    else:
+        if operations_record.get("status") == "preparing":
+            try:
+                operations_record = transition_notification_outbox(
+                    operations_path,
+                    run_id,
+                    "pending",
+                )
+            except Exception as exc:
+                dependency_health["operations"] = "degraded"
+                status_reasons.append("operations_commit_failed")
+                errors.append(f"operations_commit_failed: {exc}")
+                final_status = _final_status(dependency_health, status_reasons)
+                task_state = "needs_review"
+                operations_record = {
+                    **operations_record,
+                    "status": "failed",
+                    "error": "operations_commit_failed",
+                }
+        task_record = _safe_task_update(
+            state_path,
+            run_id,
+            preset_name,
+            task_state,
+            artifacts,
+            f"{len(items)} items collected for {preset_name}",
+            _unique(status_reasons),
+            dependency_health,
+            status_reasons,
+            errors,
+            _downstream_observations(downstream_handoff),
+        )
     return {
-        "meta": meta.to_dict() | {"status": final_status, "status_reason": _unique(status_reasons)},
+        "meta": meta.to_dict() | {
+            "status": final_status,
+            "status_reason": _unique(status_reasons),
+        },
         "report": report_payload,
         "insight": insight_payload,
         "gate": gate_payload,
         "operations": operations_record,
     }
-
 
 def _dedupe_items(items: list[NormalizedItem]) -> list[NormalizedItem]:
     deduped: list[NormalizedItem] = []
@@ -378,7 +477,7 @@ def _safe_task_update(
 
 
 def _disabled_payload(name: str, dependency_health: dict[str, str] | None = None) -> dict[str, Any]:
-    payload = {
+    payload: dict[str, Any] = {
         "schema_version": RunMeta.__dataclass_fields__["schema_version"].default,
         "status": "ok",
         "mode": "disabled",
@@ -407,7 +506,7 @@ def _disabled_log(kind: str, run_id: str, preset_name: str) -> dict[str, Any]:
 
 def _failed_log(kind: str, run_id: str, preset_name: str, error: str, artifacts: dict[str, str]) -> dict[str, Any]:
     key_name = "entry_id" if kind == "memx" else "sync_id"
-    payload = {
+    payload: dict[str, Any] = {
         "schema_version": RunMeta.__dataclass_fields__["schema_version"].default,
         key_name: f"{kind}-{run_id}",
         "preset": preset_name,
@@ -434,6 +533,43 @@ def _expected_artifacts(run_dir: Path) -> dict[str, str]:
     }
 
 
+def _prepare_delivery(
+    runtime: dict[str, Any],
+    preset: dict[str, Any],
+    delivery_mode_override: str | None,
+    confirm_live: bool,
+    run_id: str,
+) -> tuple[str, TrackerBridgeTransport | None, str | None, bool]:
+    mode = (
+        delivery_mode_override
+        or preset.get("downstream_handoff_mode")
+        or runtime.get("downstream_handoff_mode", "dry_run")
+    )
+    if mode not in {"dry_run", "shadow", "live"}:
+        mode = "dry_run"
+    confirmed = confirm_live or os.environ.get("RAND_CONFIRM_LIVE_DELIVERY") == "1"
+    if mode != "live":
+        return mode, None, None, confirmed
+    if not confirmed:
+        return (
+            mode,
+            None,
+            "live delivery requires --confirm-live or RAND_CONFIRM_LIVE_DELIVERY=1",
+            False,
+        )
+    if not runtime.get("tracker_bridge_db_path") or not runtime.get("tracker_connection_id"):
+        return mode, None, "tracker bridge DB path and connection ID are required", True
+    return (
+        mode,
+        TrackerBridgeTransport(
+            db_path=workspace_root() / runtime["tracker_bridge_db_path"],
+            connection_id=str(runtime["tracker_connection_id"]),
+            task_id=f"task-{run_id}",
+        ),
+        None,
+        True,
+    )
+
 def _final_status(dependency_health: dict[str, str], status_reasons: list[str]) -> str:
     reasons = set(status_reasons)
     if (
@@ -441,6 +577,7 @@ def _final_status(dependency_health: dict[str, str], status_reasons: list[str]) 
         or dependency_health.get("state") == "failed"
         or dependency_health.get("report") == "failed"
         or "report_save_failed" in reasons
+        or dependency_health.get("delivery") == "failed"
     ):
         return "failed"
     if any(value != "ok" for value in dependency_health.values()) or reasons:

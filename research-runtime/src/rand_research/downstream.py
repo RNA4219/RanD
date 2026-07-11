@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import json
+from datetime import datetime, timezone
 from typing import Any
 
+from rand_research.artifact_schema import build_artifact_envelope, validate_artifact_payload
 from rand_research.models import SCHEMA_VERSION
 
 HandoffMode = str
@@ -34,6 +38,27 @@ def build_downstream_handoff(
         "delivery": _delivery_observation(handoff_mode),
         "error": None,
     }
+    handoff = build_artifact_envelope(
+        handoff,
+        artifact_id=f"rand:artifact:{run_id}:downstream_handoff",
+        artifact_type="downstream_handoff",
+        created_at=datetime.now(timezone.utc).isoformat(),
+        input_refs=[
+            str(value)
+            for value in (
+                (packet or {}).get("packet_id"),
+                (audit_packet or {}).get("document_id"),
+            )
+            if value
+        ],
+        source_refs=list(
+            (packet or audit_packet or {}).get("source_refs", [])
+        ),
+        downstream_allowed_uses=["review", "tracker_issue_creation"],
+    )
+    validation = validate_artifact_payload(handoff, "downstream_handoff")
+    if validation["status"] != "ok":
+        raise ValueError(f"downstream handoff validation failed: {validation['issues']}")
     handoff["delivery"] = _apply_delivery_mode(handoff, handoff_mode, transport)
     return handoff
 
@@ -87,6 +112,17 @@ def _apply_delivery_mode(
     observation["accepted_by"] = result.get("accepted_by")
     observation["response_ref"] = result.get("response_ref")
     observation["error"] = result.get("error")
+    for key in (
+        "attempted",
+        "applied",
+        "skipped",
+        "failed",
+        "remote_refs",
+        "sync_event_refs",
+        "results",
+    ):
+        if key in result:
+            observation[key] = result[key]
     return observation
 
 
@@ -187,6 +223,7 @@ def _tracker_handoff(packet: dict[str, Any] | None, audit_packet: dict[str, Any]
         "artifact_type": "tracker_dry_run_issues",
         "issues": [
             {
+                "handoff_item_id": _handoff_item_id(item),
                 "title": _issue_title(item),
                 "body": _issue_body(item),
                 "labels": _issue_labels(item),
@@ -195,6 +232,13 @@ def _tracker_handoff(packet: dict[str, Any] | None, audit_packet: dict[str, Any]
         ],
     }
 
+
+def _handoff_item_id(item: dict[str, Any]) -> str:
+    identity = item.get("requirement_id")
+    if not identity:
+        identity = json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(str(identity).encode("utf-8")).hexdigest()[:24]
+    return f"rand:handoff-item:{digest}"
 
 def _issue_title(item: dict[str, Any]) -> str:
     return item.get("title") or item.get("requirement_id") or "RanD requirement handoff"

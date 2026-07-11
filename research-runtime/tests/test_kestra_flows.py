@@ -31,5 +31,20 @@ class KestraFlowContractTests(unittest.TestCase):
         self.assertIn('"operations": {{ outputs.collect-operations.outputFiles', heartbeat)
 
 
+    def test_heartbeat_checks_stdout_status_and_exit_code(self) -> None:
+        heartbeat = (self.root / "research-heartbeat.yaml").read_text(encoding="utf-8")
+        self.assertIn('expected_code = {"ok": 0, "failed": 1, "degraded": 2}.get(status)', heartbeat)
+        self.assertIn('"success": status == "ok"', heartbeat)
+        self.assertIn('if failed:', heartbeat)
+        self.assertIn('WARNING:', heartbeat)
+
+    def test_manual_run_fails_only_failed_and_warns_degraded(self) -> None:
+        manual = (self.root / "research-manual-run.yaml").read_text(encoding="utf-8")
+        self.assertNotIn("check=True", manual)
+        self.assertIn('expected_code = {"ok": 0, "failed": 1, "degraded": 2}.get(status)', manual)
+        self.assertIn('if status == "failed":', manual)
+        self.assertIn('if status == "degraded":', manual)
+        self.assertIn('"success": status == "ok"', manual)
+
 if __name__ == "__main__":
     unittest.main()

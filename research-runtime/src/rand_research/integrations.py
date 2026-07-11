@@ -4,14 +4,12 @@ import importlib
 import json
 import os
 import subprocess
-import urllib.error
-import urllib.request
 from typing import Any
 
 from rand_research.env_loader import ensure_repo_paths, load_env_from_peer_repos
-from rand_research.models import NormalizedItem, SCHEMA_VERSION
+from rand_research.http_utils import INTEGRATION_MAX_BYTES, request_bytes
+from rand_research.models import SCHEMA_VERSION, NormalizedItem
 from rand_research.paths import installer_root
-from rand_research.sync_writers import write_memx_journal, write_tracker_sync
 
 
 def build_insight_payload(item: NormalizedItem) -> dict[str, Any]:
@@ -191,8 +189,10 @@ def check_dependencies() -> dict[str, Any]:
     report["external_api"] = {
         "insight_api_configured": bool(os.environ.get("RAND_INSIGHT_API_URL")),
         "gate_api_configured": bool(os.environ.get("RAND_GATE_API_URL")),
-        "insight_subagent_configured": bool(os.environ.get("RAND_INSIGHT_SUBAGENT_CMD")),
-        "gate_subagent_configured": bool(os.environ.get("RAND_GATE_SUBAGENT_CMD")),
+        "insight_subagent_configured": bool(os.environ.get("RAND_INSIGHT_SUBAGENT_ARGV")),
+        "insight_shell_subagent_configured": bool(os.environ.get("RAND_INSIGHT_SUBAGENT_CMD")),
+        "gate_subagent_configured": bool(os.environ.get("RAND_GATE_SUBAGENT_ARGV")),
+        "gate_shell_subagent_configured": bool(os.environ.get("RAND_GATE_SUBAGENT_CMD")),
     }
     return report
 
@@ -312,7 +312,7 @@ def _run_external_api(
     url = os.environ.get(f"RAND_{kind.upper()}_API_URL")
     if not url:
         return None, None
-    payload = {
+    payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": kind,
         "requests": requests,
@@ -350,10 +350,35 @@ def _run_subagent(
     cause: str,
     dependency_health: dict[str, str] | None = None,
 ) -> dict[str, Any] | None:
-    command = os.environ.get(f"RAND_{kind.upper()}_SUBAGENT_CMD")
-    if not command:
+    argv_value = os.environ.get(f"RAND_{kind.upper()}_SUBAGENT_ARGV")
+    legacy_command = os.environ.get(f"RAND_{kind.upper()}_SUBAGENT_CMD")
+    legacy_shell = False
+    command: list[str] | str
+    if argv_value:
+        try:
+            parsed = json.loads(argv_value)
+        except json.JSONDecodeError as exc:
+            return _subagent_failure_payload(
+                kind,
+                f"{cause}; subagent_argv_invalid_json: {exc}",
+                dependency_health,
+            )
+        if not isinstance(parsed, list) or not parsed or not all(
+            isinstance(part, str) and part for part in parsed
+        ):
+            return _subagent_failure_payload(
+                kind,
+                f"{cause}; subagent_argv_must_be_nonempty_string_array",
+                dependency_health,
+            )
+        command = parsed
+    elif legacy_command and os.environ.get("RAND_ALLOW_SHELL_SUBAGENT") == "1":
+        command = legacy_command
+        legacy_shell = True
+    else:
         return None
-    payload = {
+
+    payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "kind": kind,
         "fallback_cause": cause,
@@ -368,7 +393,7 @@ def _run_subagent(
             capture_output=True,
             check=False,
             encoding="utf-8",
-            shell=True,
+            shell=legacy_shell,
             timeout=_integration_timeout_seconds(),
         )
     except Exception as exc:
@@ -382,20 +407,25 @@ def _run_subagent(
         return _subagent_failure_payload(kind, f"{cause}; subagent_invalid_json: {exc}", dependency_health)
     results = _coerce_integration_results(response)
     status = response.get("status") or _aggregate_nested_status(results)
+    warnings: list[str] = []
+    if legacy_shell:
+        warnings.append("legacy shell subagent command enabled by RAND_ALLOW_SHELL_SUBAGENT=1")
+        if status == "ok":
+            status = "degraded"
     result_payload = {
         "schema_version": SCHEMA_VERSION,
         "status": status,
         "mode": f"{kind}-subagent",
         "results": results,
-        "error": response.get("error") if status != "ok" else None,
+        "error": response.get("error") if status != "ok" and not legacy_shell else None,
+        "warnings": warnings,
     }
     if dependency_health is not None:
         result_payload["dependency_health"] = dependency_health
     return result_payload
 
-
 def _subagent_failure_payload(kind: str, error: str, dependency_health: dict[str, str] | None = None) -> dict[str, Any]:
-    payload = {
+    payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "status": "degraded",
         "mode": f"{kind}-subagent",
@@ -408,19 +438,19 @@ def _subagent_failure_payload(kind: str, error: str, dependency_health: dict[str
 
 
 def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str], timeout_seconds: int) -> dict[str, Any]:
-    request = urllib.request.Request(
+    response = request_bytes(
         url,
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers=headers,
         method="POST",
+        timeout_seconds=timeout_seconds,
+        max_bytes=INTEGRATION_MAX_BYTES,
+        allowed_content_types={"application/json"},
     )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"HTTP {exc.code}: {body}") from exc
-
+    decoded = json.loads(response.body.decode(response.charset))
+    if not isinstance(decoded, dict):
+        raise ValueError("integration response must be a JSON object")
+    return decoded
 
 def _coerce_integration_results(response: dict[str, Any]) -> list[dict[str, Any]]:
     results = response.get("results", [])

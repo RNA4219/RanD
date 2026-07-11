@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rand.local/schemas/artifact-2.0.schema.json",
+  "title": "RanD Artifact Contract 2.0",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "type",
+    "producer",
+    "created_at",
+    "input_refs",
+    "source_refs",
+    "status",
+    "assumptions",
+    "limitations",
+    "review_required",
+    "downstream_allowed_uses"
+  ],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "id": {"type": "string", "minLength": 1},
+    "type": {"type": "string", "minLength": 1},
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"const": "RanD"},
+        "version": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "input_refs": {"type": "array", "items": {"type": "string"}},
+    "source_refs": {"type": "array", "items": {"type": "string"}},
+    "status": {"type": "string", "minLength": 1},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "review_required": {"type": "boolean"},
+    "downstream_allowed_uses": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "artifacts": {"type": ["array", "object"]}
+  },
+  "additionalProperties": true
+}

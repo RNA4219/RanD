@@ -7,7 +7,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from rand_research.artifact_schema import validate_artifact_path
-from rand_research.pilot_snapshot import accept_current_pilot_state, build_pilot_snapshot, review_pilot_snapshot, write_pilot_snapshot
+from rand_research.pilot_snapshot import (
+    accept_current_pilot_state,
+    build_pilot_snapshot,
+    review_pilot_snapshot,
+    write_pilot_snapshot,
+)
 
 
 class PilotSnapshotTests(unittest.TestCase):

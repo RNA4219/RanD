@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from rand_research.commands.common import print_json, resolve_path
 from rand_research.artifact_schema import validate_artifact_path
+from rand_research.commands.common import print_json, resolve_path
 from rand_research.review_tools import (
     build_shadow_eval_template,
     build_tracker_review,
@@ -33,7 +33,7 @@ def register_review_commands(subparsers: argparse._SubParsersAction[argparse.Arg
     validate_parser.add_argument("--type", default=None)
 
 
-def handle_review_command(args: argparse.Namespace, runtime_root: Path, repo_root: Path) -> bool:
+def handle_review_command(args: argparse.Namespace, runtime_root: Path, repo_root: Path) -> int | None:
     if args.command == "shadow-eval-template":
         payload = build_shadow_eval_template(resolve_path(args.run_dir, runtime_root))
         content = write_payload_or_print(
@@ -42,12 +42,12 @@ def handle_review_command(args: argparse.Namespace, runtime_root: Path, repo_roo
             args.format,
         )
         print(content)
-        return True
+        return 0
     if args.command == "tracker-review":
         payload = build_tracker_review(resolve_path(args.path, runtime_root))
         content = write_payload_or_print(payload, resolve_path(args.out, runtime_root) if args.out else None)
         print(content)
-        return True
+        return 0
     if args.command == "generate-task-seeds":
         print_json(
             generate_task_seed_drafts(
@@ -56,8 +56,11 @@ def handle_review_command(args: argparse.Namespace, runtime_root: Path, repo_roo
                 dry_run=not args.write,
             )
         )
-        return True
+        return 0
     if args.command == "validate-artifact":
-        print_json(validate_artifact_path(resolve_path(args.path, runtime_root), args.type))
-        return True
-    return False
+        validation = validate_artifact_path(resolve_path(args.path, runtime_root), args.type)
+        print_json(validation)
+        if validation["status"] != "ok":
+            return 1
+        return 2 if validation.get("legacy") else 0
+    return None

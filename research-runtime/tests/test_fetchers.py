@@ -1,10 +1,15 @@
 import unittest
 from pathlib import Path
-
 from unittest.mock import patch
 
-from rand_research.fetchers import build_kano_query_seed_items, collect_kano_shadow_search, parse_arxiv_recent_html, parse_generic_links, parse_kano_fixture_json, parse_rss_items
-
+from rand_research.fetchers import (
+    build_kano_query_seed_items,
+    collect_kano_shadow_search,
+    parse_arxiv_recent_html,
+    parse_generic_links,
+    parse_kano_fixture_json,
+    parse_rss_items,
+)
 
 FIXTURE_ROOT = Path(__file__).parent / 'fixtures'
 

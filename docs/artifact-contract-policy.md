@@ -11,8 +11,7 @@ RanD のコンポーネント境界では、暗黙の tool state や非構造な
 | `id` | artifact を一意に識別する |
 | `type` | artifact type を示す |
 | `schema_version` | contract version を示す |
-| `producer` | 生成コンポーネントを示す |
-| `producer_version` または `pinned_commit` | 生成元の版を特定する |
+| producer | nameとversionを持つ生成元object |
 | `created_at` | timestamp を timezone 付きで記録する |
 | `input_refs` | 入力 artifact や要求への参照を記録する |
 | `source_refs` | 根拠となる source を記録する |
@@ -25,6 +24,8 @@ RanD のコンポーネント境界では、暗黙の tool state や非構造な
 | `checksum` | integrity 確認が必要な場合に記録する |
 
 ## 契約ルール
+schema 2.0の機械可読な正本はresearch-runtime package同梱のJSON Schema Draft 2020-12とする。schema 1.0はwarning付き読込互換に限定し、live利用を許可しない。
+
 
 - breaking schema change には新しい `schema_version` を割り当てる。
 - downstream consumer は利用前に必須 field と対応 schema version を検証する。
@@ -55,9 +56,8 @@ RanD のコンポーネント境界では、暗黙の tool state や非構造な
 {
   "id": "insight-20260607-001",
   "type": "insight_record",
-  "schema_version": "1.0",
-  "producer": "insight-agent-adapter",
-  "pinned_commit": "0123456789abcdef",
+  "schema_version": "2.0",
+  "producer": {"name": "RanD", "version": "0.3.0"},
   "created_at": "2026-06-07T10:30:00+09:00",
   "input_refs": ["research-packet-20260607-001"],
   "source_refs": ["https://example.com/source"],

@@ -189,36 +189,29 @@ KanoMode audit preset では、固定 artifact に加えて次を保存する。
 
 ### 5.2 schema version
 
-すべての JSON artifact は root に `schema_version` を持つ。初版は `"1.0"` とする。
+新規JSON artifactの正本はschema 2.0であり、同梱するJSON Schema Draft
+2020-12を生成時、保存時、live送信前に共通利用する。
 
-- `report.json`
-  - 必須: `schema_version`, `status`, `status_reason`, `state_context`, `artifacts`, `dependency_health`
-  - `dependency_health` は少なくとも `sources`, `state`, `report`, `insight`, `gate`, `memx`, `tracker` を持つ
-- `state_context.json`
-  - 必須: `schema_version`, `before`, `after`
-- `meta.json`
-  - 必須: `schema_version`, `status`, `status_reason`, `dependency_health`
-- `memx_journal.json`
-  - root と各 `entry` の両方に `schema_version`
-- `tracker_sync.json`
-  - root と各 `event` の両方に `schema_version`
-- `kano.json`
-  - 必須: `schema_version`, `mode`, `request_id`, `topic`, `persona_modes`, `source_summary`, `kano_candidates`
-  - 各 candidate は `candidate_id`, `statement`, `kano_type`, `confidence`, `evidence`, `persona_votes`, `bias_note`, `kill_condition` を持つ
-- `requirements_packet.json`
-  - 必須: `schema_version`, `packet_id`, `derived_from`, `product_context`, `requirements`, `release_readiness_prelude`, `qeg_policy_hash_ref`
-  - `packet_id` と各 `requirement_id` は `rand:` prefix 付き ID とする
-  - 各 requirement は `requirement_id`, `statement`, `kano_type`, `priority`, `confidence`, `evidence_refs`, `kpi`, `acceptance_criteria`, `risks`, `downstream_hooks`, `gate_policy_proposal` を持つ
-  - `gate_policy_proposal` は QEG policy 正本への提案であり、QEG policyHash 参照を併記する
-  - `confidence`, `bias_note`, `kill_condition` が欠ける candidate は packet に昇格しない
-- `downstream_handoff.json`
-  - 必須: `schema_version`, `handoff_id`, `mode`, `workflow_cookbook`, `manual_bb_test_harness`, `code_to_gate`, `tracker_bridge`, `status`, `delivery`, `error`
-  - `handoff_id` は `rand:` prefix 付き ID とする
-  - `status` は `dry_run`, `shadow`, `live` のいずれかとし、未指定時は `dry_run` とする
-  - `dry_run` は実送信も送信内容の通電記録も行わない
-  - `shadow` は送信内容を記録するが実送信しない
-  - `live` は明示設定時のみ送信し、成功 / 失敗 / 宛先受理 verdict を `delivery` に残す
+全artifactは次を持つ。
 
+- schema_version=2.0
+- id、type
+- producer.nameとproducer.version
+- timezone付きcreated_at
+- input_refs、source_refs
+- status、assumptions、limitations
+- review_required、downstream_allowed_uses
+
+schema 1.0は既存の緩い必須field契約で読込可能だがlegacy warningを返し、
+live送信は禁止する。既存artifactの一括変換は行わない。
+
+run成果物はstagingで全件生成・検証し、manifest.jsonへ各artifactのSHA-256と
+sizeを記録してからrun directoryへrenameする。manifest検証ではchecksumと
+sizeの双方を確認する。
+
+downstream_handoffのtracker issue候補は安定handoff_item_idを持つ。statusは
+dry_run、shadow、liveのいずれかで、liveはmode指定と明示確認の二重条件を
+満たした場合だけtracker-bridgeへ送る。
 ### 5.3 compatibility policy
 
 - additive change は minor 更新として扱う
@@ -243,9 +236,10 @@ Insight / Gate は次の順で実行する。
    - Gate: `RAND_GATE_API_URL`
    - 任意 token: `RAND_INSIGHT_API_TOKEN`, `RAND_GATE_API_TOKEN`
 2. サブエージェント fallback
-   - Insight: `RAND_INSIGHT_SUBAGENT_CMD`
-   - Gate: `RAND_GATE_SUBAGENT_CMD`
+   - Insight: RAND_INSIGHT_SUBAGENT_ARGV (JSON array)
+   - Gate: RAND_GATE_SUBAGENT_ARGV (JSON array)
    - API 失敗または peer repo import 失敗時に、同一 request payload を stdin JSON で渡す
+   - shell=Falseを既定とし、旧CMDはRAND_ALLOW_SHELL_SUBAGENT=1の場合だけdegraded warning付きで許可する
 3. peer repo の Python API
    - `insight_core.run(request_dict=...)`
    - `experiment_gate.run_gate(request=...)`

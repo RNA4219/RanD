@@ -1,5 +1,7 @@
 # RanD Research Runtime
 
+[![CI](https://github.com/RNA4219/RanD/actions/workflows/ci.yml/badge.svg)](https://github.com/RNA4219/RanD/actions/workflows/ci.yml)
+
 `research-runtime` は RanD の実行層です。論文・AI ニュースを収集し、正規化し、必要に応じて洞察抽出と Go/Hold/No-Go 評価を行い、artifact と state を保存します。
 
 ## 入口
@@ -64,7 +66,7 @@ Insight / Gate の実行は、外部 API を最優先にします。
 
 - `RAND_INSIGHT_API_URL`, `RAND_GATE_API_URL`: HTTP API endpoint
 - `RAND_INSIGHT_API_TOKEN`, `RAND_GATE_API_TOKEN`: 任意の bearer token
-- `RAND_INSIGHT_SUBAGENT_CMD`, `RAND_GATE_SUBAGENT_CMD`: API 失敗時に stdin JSON を受け取るサブエージェントコマンド
+- RAND_INSIGHT_SUBAGENT_ARGV、RAND_GATE_SUBAGENT_ARGV: API失敗時にstdin JSONを受け取るJSON argv配列（shell=False）
 - `RAND_INTEGRATION_TIMEOUT_SECONDS`: API / subagent timeout
 
 API とサブエージェントが使えない場合は、peer repo の Python API を試し、それも失敗したら deterministic fallback を `degraded` として保存します。
@@ -129,7 +131,7 @@ state ファイルは atomic write で更新します。途中失敗で壊れた
 - `tracker_sync.json`
 - `state_context.json`
 
-すべての JSON artifact は `schema_version: "1.0"` を持ちます。
+すべての新規JSON artifactはschema 2.0 envelopeを持ち、Draft 2020-12 schemaで検証されます。schema 1.0はwarning付き読込互換ですがlive送信できません。
 
 保存済み artifact の必須 field と入れ子の `schema_version` は `validate-artifact` で確認できます。
 
@@ -161,6 +163,12 @@ KanoMode audit preset では、上記に加えて次を保存します。
   - `gate_summary` に `go / conditional_go / no_go` の分布と overall assessment
 
 KanoMode の packet 生成時は追加で `downstream_handoff.json` を保存します。これは `requirements_packet.json` または `requirements_audit_packet.json` を、`workflow-cookbook` の Task Seed、`manual-bb-test-harness` のテスト観点、`code-to-gate` の phase contract、`tracker-bridge-materials` の issue へ分解した handoff artifact です。既定は `dry_run` で実送信せず、`shadow` は送信内容を記録するだけ、`live` は明示設定時だけ送信結果を `delivery` と taskstate / metrics の観測点へ残します。
+live GitHub配送は次のように二重確認します。
+
+    python -m rand_research.cli run-once --preset <preset> --delivery-mode live --confirm-live
+
+CLI mode、preset、runtime設定の順に優先されます。dry_runとshadowはtracker APIを
+呼びません。接続先、repository、secret参照はtracker connectionが正本です。
 
 ## Operations CLI
 
@@ -260,7 +268,7 @@ Windows 環境で `python` が Windows Store stub に当たる場合は、`uv ru
 
 2026-05-29 JST 時点の KanoMode Eval 検証結果:
 
-- pytest: `64 passed`
+- pytest: 最新結果は CI badge を参照
 - discovery offline eval:
   - run_id `20260528-150341-856a486c`
   - `status: ok`
