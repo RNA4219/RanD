@@ -145,7 +145,25 @@ Audit mode では、既存要件定義を監査対象として読み、各要件
 
 KanoMode の受け入れでは live web search を必須にしません。再現性のある fixture / cached corpus による offline eval を正本にし、live search は pilot / shadow eval として扱います。
 
-`kano_requirements_hybrid` には live/search pilot 用の `kano_shadow_search` adapter があります。既定では無効で、`RAND_KANO_SHADOW_SEARCH=1` を設定した場合だけ設定済み検索 URL から shadow evidence を収集します。収集結果は通常の `kano.json` / `requirements_packet.json` へ混ぜられますが、検索順位や SEO ノイズを含むため、通常受け入れの正本にはしません。
+### KanoMode の検索と本文確認
+
+ローカルで RustXNG を起動し、リポジトリのルートで次を実行します。
+
+```powershell
+$env:RAND_KANO_SHADOW_SEARCH = "1"
+$env:RAND_KANO_SEARCH_PROVIDER = "rustxng"
+.\run-research-once.bat kano_requirements_hybrid
+```
+
+検索を有効にした場合の既定は `html` です。プリセットの `kano_shadow_search` に `"provider": "rustxng"` を指定すると、その検索元では環境変数よりプリセットの指定を優先します。RustXNG は同じ `query_families` と `locales` を使い、各問の上位5件を実行時の件数上限まで集めます。接続先の既定は `http://127.0.0.1:29483/search` で、`RAND_RUSTXNG_ENDPOINT` または検索元の `rustxng_endpoint` で変更できます。
+
+`report.json` の `collected_items` に元 URL・タイトル・抜粋・検索元が残ります。検索元に `"include_raw_content": true` を指定すると、RustXNG が返したページ本文も `metadata.raw_content` に保存します。HTML と RustXNG の検索結果はともに `review_status=pending` で収集します。本文が取得できても確認待ちは続きます。
+
+確認結果を記録するには、対象の `collected_items` を `{"items": [...]}` の JSON にコピーし、元ページを読んで次を編集します。
+
+- 根拠に使える場合は `metadata.review_status` を `verified` とし、`metadata.source_tier` に当事者の報告なら `user_signal`、公式資料なら `primary`、比較資料なら `comparison` を指定します。`summary` に本文で確かめた内容を書き、要求の仮分類と信頼度も確認します。
+- 対象外のページは `metadata.review_status` を `excluded` とし、理由を `summary` に記録します。
+- この JSON を `kano_fixture_json` 検索元の `fixture_path` に指定して KanoMode を再実行します。パスの基準は `research-runtime` です。`kano.json` には確認状態が残り、要求への昇格には確認待ち・対象外の結果を使いません。
 
 KanoMode discovery preset では、上記に加えて次を保存します。
 

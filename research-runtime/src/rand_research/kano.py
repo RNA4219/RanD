@@ -91,7 +91,10 @@ def _build_candidates(items: list[NormalizedItem], preset: dict[str, Any], run_i
         supporting = [item for item in group if item.supports_kano_requirement]
         first = supporting[0] if supporting else group[0]
         kano_type = _select_kano_type(supporting)
-        confidence = round(sum(float(item.metadata.get("confidence", 0.6)) for item in supporting) / len(supporting), 2) if supporting else 0.0
+        confidence = 0.0
+        if supporting:
+            scores = [float(item.metadata.get("confidence", 0.6)) for item in supporting]
+            confidence = round(sum(scores) / len(scores), 2)
         evidence = [_evidence_entry(item, evidence_index) for evidence_index, item in enumerate(group, start=1)]
         statement = first.metadata.get("requirement_statement") or first.title
         promotion_gate = _promotion_gate(candidate := {
@@ -133,6 +136,7 @@ def _candidate_sort_key(candidate: dict[str, Any]) -> tuple[int, int, str]:
 def _candidate_to_requirement(candidate: dict[str, Any], index: int) -> dict[str, Any]:
     kano_type = candidate["kano_type"]
     proposal = _gate_policy_for(kano_type)
+    evidence_ids = [entry["evidence_id"] for entry in candidate["evidence"] if _supports_requirement(entry)]
     return {
         "requirement_id": _rand_id(f"REQ-{index:03d}"),
         "title": candidate["statement"][:80],
@@ -140,7 +144,7 @@ def _candidate_to_requirement(candidate: dict[str, Any], index: int) -> dict[str
         "kano_type": kano_type,
         "priority": _priority_for(kano_type),
         "confidence": candidate["confidence"],
-        "evidence_refs": [candidate["candidate_id"], *[entry["evidence_id"] for entry in candidate["evidence"] if _supports_requirement(entry)]],
+        "evidence_refs": [candidate["candidate_id"], *evidence_ids],
         "kpi": _kpi_for(kano_type),
         "acceptance_criteria": _acceptance_for(kano_type),
         "risks": _risks_for(kano_type),
@@ -163,6 +167,7 @@ def _candidate_to_requirement(candidate: dict[str, Any], index: int) -> dict[str
 
 def _evidence_entry(item: NormalizedItem, index: int) -> dict[str, Any]:
     return {
+        **{key: item.metadata[key] for key in ("search_provider", "engine", "engines") if key in item.metadata},
         "review_status": item.kano_review_status,
         "evidence_id": f"EV-{index:03d}-{item.id[:24]}",
         "source_type": item.metadata.get("source_type", item.kind),

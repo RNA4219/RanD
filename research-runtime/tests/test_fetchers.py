@@ -1,15 +1,20 @@
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 from rand_research.fetchers import (
+    ShadowSearchError,
     build_kano_query_seed_items,
     collect_kano_shadow_search,
+    collect_source,
     parse_arxiv_recent_html,
     parse_generic_links,
     parse_kano_fixture_json,
     parse_rss_items,
 )
+from rand_research.http_utils import HttpResponse
 from rand_research.kano import build_kano_artifacts
 from rand_research.models import NormalizedItem
 from rand_research.pipeline import _dedupe_items
@@ -17,7 +22,52 @@ from rand_research.pipeline import _dedupe_items
 FIXTURE_ROOT = Path(__file__).parent / 'fixtures'
 
 
+def rustxng_response(payload):
+    return HttpResponse(json.dumps(payload).encode(), "application/json", "utf-8", "http://localhost/search")
+
+
 class FetcherTests(unittest.TestCase):
+    def test_rustxng_preserves_search_provenance_and_requires_review_even_with_page_text(self) -> None:
+        source = {"name": "shadow", "fetcher": "kano_shadow_search", "topic": "WSL 2 & 日本語",
+                  "locales": ["ja-JP", "en-US"], "include_raw_content": True,
+                  "query_families": [{"name": "setup", "template": "{topic}", "kano_type": "must_be",
+                                      "source_tier": "primary", "confidence": 0.95}]}
+        hit = {"title": "WSL setup", "url": "https://docs.docker.com/desktop/features/wsl/",
+               "content": "snippet", "engine": "mwmbl", "engines": ["mwmbl"], "raw_content": "page text",
+               "review_status": "verified"}
+        reply = rustxng_response({"results": [hit, hit, {"url": "javascript:void(0)", "title": "bad"}]})
+        env = {"RAND_KANO_SHADOW_SEARCH": "1", "RAND_KANO_SEARCH_PROVIDER": "rustxng",
+               "RAND_RUSTXNG_ENDPOINT": "http://localhost:8080/search"}
+        with patch.dict("os.environ", env), patch("rand_research.fetchers.request_bytes", return_value=reply) as http:
+            item, = collect_source(source, "test", 2, 4)
+        self.assertEqual(http.call_count, 2)
+        parsed = urlsplit(http.call_args_list[0].args[0])
+        self.assertEqual((parsed.netloc, parsed.path), ("localhost:8080", "/search"))
+        self.assertEqual(parse_qs(parsed.query), {"q": ["WSL 2 & 日本語"], "language": ["ja"], "format": ["json"],
+                                                  "max_results": ["4"], "include_raw_content": ["1"]})
+        self.assertEqual(http.call_args.kwargs["allowed_content_types"], {"application/json"})
+        self.assertEqual((item.url, item.title, item.summary), (hit["url"], hit["title"], "snippet"))
+        self.assertEqual(item.metadata["raw_content"], "page text")
+        result = build_kano_artifacts([item], {}, "run")
+        ev, = result["kano"]["kano_candidates"][0]["evidence"]
+        self.assertEqual((ev["review_status"], ev["source_tier"], ev["search_provider"], ev["engines"]),
+                         ("pending", "discovery", "rustxng", ["mwmbl"]))
+        self.assertEqual(result["requirements_packet"]["requirements"], [])
+
+    def test_rustxng_reports_failed_queries_and_keeps_successful_hits(self) -> None:
+        source = {"name": "shadow", "fetcher": "kano_shadow_search", "provider": "rustxng",
+                  "locales": ["en", "ja", "fr", "de"], "query_families": [{"name": "setup"}]}
+        replies = [rustxng_response({"results": [], "unresponsive_engines": [["example", "timeout"]]}),
+                   rustxng_response({"results": "invalid"}), rustxng_response({"results": []}),
+                   rustxng_response({"results": [{"title": "Useful result", "url": "https://example.org/wsl"}]})]
+        with patch.dict("os.environ", {"RAND_KANO_SHADOW_SEARCH": "1"}), patch("rand_research.fetchers.request_bytes", side_effect=replies) as http:
+            with self.assertRaises(ShadowSearchError) as error:
+                collect_source(source, "test", 2, 5)
+        self.assertNotIn("include_raw_content", http.call_args.args[0])
+        self.assertIn("timeout", str(error.exception))
+        self.assertIn("results array", str(error.exception))
+        self.assertEqual([item.url for item in error.exception.items], ["https://example.org/wsl"])
+
     def test_search_links_need_review_before_they_can_support_a_requirement(self) -> None:
         html = ('<a href="/httpservice/retry/enablejs">here</a>'
                 '<a href="/search?retry=1">click here</a>'

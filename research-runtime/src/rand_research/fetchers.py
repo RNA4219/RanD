@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import html
 import json
+import os
 import re
 import urllib.parse
 import urllib.request
@@ -13,6 +15,12 @@ from typing import Any
 from rand_research.http_utils import SOURCE_MAX_BYTES, request_bytes
 from rand_research.models import NormalizedItem
 from rand_research.paths import workspace_root
+
+
+class ShadowSearchError(RuntimeError):
+    def __init__(self, errors: list[str], items: list[NormalizedItem]) -> None:
+        super().__init__("; ".join(errors))
+        self.items = items
 
 
 def fetch_text(url: str, user_agent: str, timeout_seconds: int) -> str:
@@ -255,17 +263,22 @@ def collect_kano_shadow_search(
     Kano evidence candidates. This keeps live search as a pilot path while fixture
     eval remains the acceptance source of truth.
     """
-    import os
-
     enabled_env = source.get("enabled_env", "RAND_KANO_SHADOW_SEARCH")
     if str(os.environ.get(enabled_env, "")).lower() not in {"1", "true", "yes", "on"}:
         return []
 
+    provider = source.get("provider", os.environ.get("RAND_KANO_SEARCH_PROVIDER", "html"))
+    if provider not in ("html", "rustxng"):
+        raise ValueError(f"Unknown Kano search provider: {provider}")
     urls = source.get("urls", [])
+    if urls and provider == "rustxng":
+        raise ValueError("RustXNG uses query_families; urls are HTML search pages")
     if not urls:
-        urls = _shadow_search_urls_from_families(source)
+        urls = _shadow_search_urls_from_families(source, provider, max_items)
 
     items: list[NormalizedItem] = []
+    seen: set[str] = set()
+    errors: list[str] = []
     for url_config in urls:
         if len(items) >= max_items:
             break
@@ -276,14 +289,21 @@ def collect_kano_shadow_search(
             url = url_config["url"]
             metadata = dict(url_config.get("metadata", {}))
 
-        html_text = fetch_text(url, user_agent, timeout_seconds)
-        local_source = {
-            "name": source["name"],
-            "kind": "kano_evidence",
-            "url": url,
-            "link_pattern": source.get("link_pattern"),
-        }
-        for item in parse_generic_links(local_source, html_text, max_items - len(items)):
+        if provider == "rustxng":
+            try:
+                hits = _fetch_rustxng_items(url, source["name"], user_agent, timeout_seconds)
+            except (OSError, RuntimeError, ValueError) as exc:
+                errors.append(f"{metadata.get('locale', 'und')} {metadata.get('source_type', '')}: {exc}")
+                continue
+        else:
+            html_text = fetch_text(url, user_agent, timeout_seconds)
+            local_source = {**source, "kind": "kano_evidence", "url": url}
+            hits = parse_generic_links(local_source, html_text, max_items - len(items))
+        for item in hits:
+            if provider == "rustxng":
+                if item.url in seen:
+                    continue
+                seen.add(item.url)
             family = metadata.get("source_type", source.get("source_type", "shadow_search"))
             candidate_id = metadata.get("kano_candidate_id") or _slugify(f"{family}-{item.title}")[:48]
             item.kind = "kano_evidence"
@@ -294,6 +314,7 @@ def collect_kano_shadow_search(
                     "source_type": family,
                     "source_tier": "discovery",
                     "review_status": "pending",
+                    "search_provider": provider,
                     "locale": metadata.get("locale", "und"),
                     "kano_type": metadata.get("kano_type", "questionable"),
                     "kano_candidate_id": candidate_id,
@@ -309,12 +330,49 @@ def collect_kano_shadow_search(
             items.append(item)
             if len(items) >= max_items:
                 break
+    if errors:
+        raise ShadowSearchError(errors, items)
     return items
 
 
-def _shadow_search_urls_from_families(source: dict[str, Any]) -> list[dict[str, Any]]:
-    endpoint_template = source.get("search_endpoint_template")
-    if not endpoint_template:
+def _fetch_rustxng_items(url: str, name: str, user_agent: str, timeout_seconds: int) -> list[NormalizedItem]:
+    response = request_bytes(
+        url, headers={"User-Agent": user_agent, "Accept": "application/json"},
+        timeout_seconds=timeout_seconds, max_bytes=SOURCE_MAX_BYTES, allowed_content_types={"application/json"},
+    )
+    payload = json.loads(response.body)
+    if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+        raise ValueError("RustXNG response is missing a results array")
+    if not payload["results"] and payload.get("unresponsive_engines"):
+        raise RuntimeError(f"RustXNG returned no results with upstream errors: {payload['unresponsive_engines']}")
+    items: list[NormalizedItem] = []
+    for rank, result in enumerate(payload["results"], 1):
+        if not isinstance(result, dict):
+            continue
+        link = result.get("url")
+        title = result.get("title")
+        if not isinstance(link, str) or not isinstance(title, str) or not title.strip():
+            continue
+        try:
+            parsed = urllib.parse.urlsplit(link)
+            if parsed.scheme not in ("http", "https") or not parsed.hostname:
+                continue
+        except ValueError:
+            continue
+        result_fields = ("engine", "engines", "raw_content", "raw_content_status", "raw_content_truncated")
+        details = {key: result[key] for key in result_fields if key in result}
+        details["search_rank"] = rank
+        snippet = result.get("content")
+        items.append(NormalizedItem(
+            id="rustxng-" + hashlib.sha256(link.encode()).hexdigest()[:16],
+            kind="kano_evidence", source_name=name, url=link, title=title,
+            summary=snippet if isinstance(snippet, str) else "", priority=max(6 - rank, 1), metadata=details,
+        ))
+    return items
+
+
+def _shadow_search_urls_from_families(source: dict[str, Any], provider: str, max_items: int) -> list[dict[str, Any]]:
+    if provider == "html" and not source.get("search_endpoint_template"):
         return []
     topic = source.get("topic", "RanD KanoMode")
     locales = source.get("locales", ["ja-JP", "en-US"])
@@ -323,12 +381,19 @@ def _shadow_search_urls_from_families(source: dict[str, Any]) -> list[dict[str, 
         for locale in locales:
             template = family.get("templates", {}).get(locale) or family.get("template") or "{topic} {family}"
             query = template.format(topic=topic, family=family.get("name", "kano"))
+            if provider == "rustxng":
+                endpoint = source.get("rustxng_endpoint") or os.environ.get("RAND_RUSTXNG_ENDPOINT") or "http://127.0.0.1:29483/search"
+                params = {"q": query, "language": locale.split("-")[0], "format": "json", "max_results": str(min(5, max_items))}
+                if source.get("include_raw_content") is True:
+                    params["include_raw_content"] = "1"
+                url = endpoint + ("&" if "?" in endpoint else "?") + urllib.parse.urlencode(params)
+            else:
+                url = source["search_endpoint_template"].format(query=urllib.parse.quote_plus(query), locale=locale)
             urls.append(
                 {
-                    "url": endpoint_template.format(query=urllib.parse.quote_plus(query), locale=locale),
+                    "url": url,
                     "metadata": {
                         "source_type": family.get("name", "shadow_search"),
-                        "source_tier": family.get("source_tier", "user_signal"),
                         "locale": locale,
                         "kano_type": family.get("kano_type", "questionable"),
                         "kano_candidate_id": family.get("candidate_id"),

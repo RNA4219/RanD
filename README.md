@@ -128,7 +128,7 @@ KanoMode preset では、通常の 8 artifact に加えて次を保存します�
 - `downstream_handoff.json`
   - discovery / audit packet を Task Seed、manual BB 観点、code-to-gate contract、tracker issue へ分解した pilot 用 handoff artifact です。既定は dry_run で、shadow は送信内容を記録するだけ、live は明示設定時だけ送信結果を delivery 観測点へ残します。
 
-`kano_requirements_hybrid` には live/search shadow adapter があります。既定では無効で、`RAND_KANO_SHADOW_SEARCH=1` を設定した場合だけ検索 URL から evidence を収集します。live evidence は shadow / pilot 用であり、通常検収は fixture / cached corpus を正本にします。
+`kano_requirements_hybrid` は `RAND_KANO_SHADOW_SEARCH=1` で公開情報を検索します。`RAND_KANO_SEARCH_PROVIDER=rustxng` で RustXNG、既定の `html` で従来の HTML 検索を使えます。検索結果はいったん確認待ちになり、本文を確認した結果を要求の根拠にできます。[検索と確認の手順](research-runtime/README.md#kanomode-の検索と本文確認)
 
 KanoMode の詳細な要件・仕様・検収記録は次を正本にします。
 
