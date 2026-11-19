@@ -394,15 +394,13 @@ def run_once(
     }
 
 def _dedupe_items(items: list[NormalizedItem]) -> list[NormalizedItem]:
-    deduped: list[NormalizedItem] = []
-    seen: set[str] = set()
+    by_url: dict[str, NormalizedItem] = {}
     for item in items:
         key = item.url or item.title
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(item)
-    return deduped
+        previous = by_url.get(key)
+        if previous is None or (previous.kano_review_status == "pending" and item.kano_review_status != "pending"):
+            by_url[key] = item
+    return list(by_url.values())
 
 
 def _apply_execution_context(items: list[NormalizedItem], execution_context: ExecutionContext) -> list[NormalizedItem]:

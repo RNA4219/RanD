@@ -22,6 +22,7 @@ def _rand_id(local_id: str) -> str:
 
 
 def build_kano_artifacts(items: list[NormalizedItem], preset: dict[str, Any], run_id: str) -> dict[str, dict[str, Any]]:
+    supporting = [item for item in items if item.supports_kano_requirement]
     candidates = _build_candidates(items, preset, run_id)
     promoted_candidates = [candidate for candidate in candidates if candidate["promotion_gate"]["promotable"]]
     requirements = [_candidate_to_requirement(candidate, index) for index, candidate in enumerate(promoted_candidates, start=1)]
@@ -62,10 +63,12 @@ def build_kano_artifacts(items: list[NormalizedItem], preset: dict[str, Any], ru
         "topic": preset.get("topic", preset.get("query_template", "RanD KanoMode requirements")),
         "persona_modes": preset.get("persona_modes", ["researcher", "user", "gatekeeper", "product"]),
         "source_summary": {
-            "total_evidence": len(items),
-            "primary_source_count": _count_by_tier(items, "primary"),
-            "user_signal_count": _count_by_tier(items, "user_signal"),
-            "comparison_source_count": _count_by_type(items, "compare"),
+            "total_evidence": len(supporting),
+            "pending_count": sum(item.kano_review_status == "pending" for item in items),
+            "excluded_count": sum(item.kano_review_status == "excluded" for item in items),
+            "primary_source_count": _count_by_tier(supporting, "primary"),
+            "user_signal_count": _count_by_tier(supporting, "user_signal"),
+            "comparison_source_count": _count_by_type(supporting, "compare"),
             "freshness_window_days": preset.get("freshness_window_days", 180),
         },
         "kano_candidates": candidates,
@@ -85,9 +88,10 @@ def _build_candidates(items: list[NormalizedItem], preset: dict[str, Any], run_i
 
     candidates: list[dict[str, Any]] = []
     for candidate_key, group in sorted(grouped.items()):
-        first = group[0]
-        kano_type = _select_kano_type(group)
-        confidence = round(sum(float(item.metadata.get("confidence", 0.6)) for item in group) / len(group), 2)
+        supporting = [item for item in group if item.supports_kano_requirement]
+        first = supporting[0] if supporting else group[0]
+        kano_type = _select_kano_type(supporting)
+        confidence = round(sum(float(item.metadata.get("confidence", 0.6)) for item in supporting) / len(supporting), 2) if supporting else 0.0
         evidence = [_evidence_entry(item, evidence_index) for evidence_index, item in enumerate(group, start=1)]
         statement = first.metadata.get("requirement_statement") or first.title
         promotion_gate = _promotion_gate(candidate := {
@@ -136,7 +140,7 @@ def _candidate_to_requirement(candidate: dict[str, Any], index: int) -> dict[str
         "kano_type": kano_type,
         "priority": _priority_for(kano_type),
         "confidence": candidate["confidence"],
-        "evidence_refs": [candidate["candidate_id"], *[entry["evidence_id"] for entry in candidate.get("evidence", [])]],
+        "evidence_refs": [candidate["candidate_id"], *[entry["evidence_id"] for entry in candidate["evidence"] if _supports_requirement(entry)]],
         "kpi": _kpi_for(kano_type),
         "acceptance_criteria": _acceptance_for(kano_type),
         "risks": _risks_for(kano_type),
@@ -159,6 +163,7 @@ def _candidate_to_requirement(candidate: dict[str, Any], index: int) -> dict[str
 
 def _evidence_entry(item: NormalizedItem, index: int) -> dict[str, Any]:
     return {
+        "review_status": item.kano_review_status,
         "evidence_id": f"EV-{index:03d}-{item.id[:24]}",
         "source_type": item.metadata.get("source_type", item.kind),
         "source_tier": item.metadata.get("source_tier", "unknown"),
@@ -187,6 +192,10 @@ def _promotable(candidate: dict[str, Any]) -> bool:
     return _promotion_gate(candidate)["promotable"]
 
 
+def _supports_requirement(entry: dict[str, Any]) -> bool:
+    return entry.get("review_status") in (None, "verified")
+
+
 def _promotion_gate(candidate: dict[str, Any]) -> dict[str, Any]:
     """Return promotion decision and rejection reasons for auditability."""
     reasons: list[str] = []
@@ -201,7 +210,9 @@ def _promotion_gate(candidate: dict[str, Any]) -> dict[str, Any]:
     evidence = candidate.get("evidence", [])
     if not evidence:
         reasons.append("missing evidence")
-    primary_or_signal_count = sum(1 for ev in evidence if ev.get("source_tier") in ("primary", "user_signal"))
+    if evidence and not any(_supports_requirement(entry) for entry in evidence):
+        reasons.append("no reviewed evidence")
+    primary_or_signal_count = sum(1 for ev in evidence if _supports_requirement(ev) and ev.get("source_tier") in ("primary", "user_signal"))
     if primary_or_signal_count < 1:
         reasons.append("missing primary or user_signal evidence")
     return {
@@ -279,6 +290,7 @@ def build_audit_artifacts(
     document_id: str | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Build requirements_audit_packet.json from audit evidence items."""
+    items = [item for item in items if item.supports_kano_requirement]
     audit_requirements = _build_audit_requirements(items, preset, run_id)
     gate_summary = _build_gate_summary(audit_requirements)
 

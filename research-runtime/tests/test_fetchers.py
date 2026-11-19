@@ -10,11 +10,44 @@ from rand_research.fetchers import (
     parse_kano_fixture_json,
     parse_rss_items,
 )
+from rand_research.kano import build_kano_artifacts
+from rand_research.models import NormalizedItem
+from rand_research.pipeline import _dedupe_items
 
 FIXTURE_ROOT = Path(__file__).parent / 'fixtures'
 
 
 class FetcherTests(unittest.TestCase):
+    def test_search_links_need_review_before_they_can_support_a_requirement(self) -> None:
+        html = ('<a href="/httpservice/retry/enablejs">here</a>'
+                '<a href="/search?retry=1">click here</a>'
+                '<a href="https://support.google.com/websearch">feedback</a>')
+        labels = {"kano_candidate_id": "wsl-setup", "kano_type": "must_be", "confidence": 0.99,
+                  "source_tier": "user_signal", "bias_note": "ranking bias", "kill_condition": "irrelevant"}
+        source = {"name": "shadow", "urls": [{"url": "https://www.google.com/search", "metadata": labels}]}
+        with patch.dict("os.environ", {"RAND_KANO_SHADOW_SEARCH": "1"}), patch("rand_research.fetchers.fetch_text", return_value=html):
+            hits = collect_kano_shadow_search(source, "test", 1, 5)
+        self.assertEqual(len(hits), 3)
+        raw = build_kano_artifacts(hits, {}, "run")
+        self.assertEqual(raw["requirements_packet"]["requirements"], [])
+        self.assertEqual(raw["kano"]["source_summary"]["user_signal_count"], 0)
+        self.assertEqual(raw["kano"]["source_summary"]["pending_count"], 3)
+
+        # A replay of an old shadow result lacks an explicit review status.
+        hits[0].metadata.pop("review_status")
+        hits[0].metadata["source_tier"] = "user_signal"
+        hits[1].metadata.update(review_status="excluded")
+        hits[2].url = "https://docs.docker.com/desktop/features/wsl/"
+        verified = NormalizedItem(**hits[2].to_dict())
+        verified.metadata.update(review_status="verified", source_tier="primary", kano_type="performance", confidence=0.74)
+        verified.summary = "The source text was reviewed."
+        for ordered in ([*hits, verified], [verified, *hits]):
+            artifacts = build_kano_artifacts(_dedupe_items(ordered), {}, "mixed")
+            req, = artifacts["requirements_packet"]["requirements"]
+            self.assertEqual((req["kano_type"], req["confidence"]), ("performance", 0.74))
+            self.assertEqual(len(req["evidence_refs"]), 2)
+            self.assertEqual(artifacts["kano"]["source_summary"]["excluded_count"], 1)
+
     def test_parse_arxiv_recent_html_from_fixture(self) -> None:
         html = (FIXTURE_ROOT / 'arxiv_recent.html').read_text(encoding='utf-8')
         items = parse_arxiv_recent_html({"name": "arxiv", "url": "https://arxiv.org/list/cs.AI/recent"}, html, 5)

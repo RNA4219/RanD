@@ -292,7 +292,8 @@ def collect_kano_shadow_search(
             item.metadata.update(
                 {
                     "source_type": family,
-                    "source_tier": metadata.get("source_tier", "user_signal"),
+                    "source_tier": "discovery",
+                    "review_status": "pending",
                     "locale": metadata.get("locale", "und"),
                     "kano_type": metadata.get("kano_type", "questionable"),
                     "kano_candidate_id": candidate_id,
