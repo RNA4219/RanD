@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from rand_research.config import load_preset, load_runtime_config
 from rand_research.downstream import build_downstream_handoff
-from rand_research.fetchers import collect_source
+from rand_research.fetchers import ShadowSearchError, collect_source
 from rand_research.integrations import run_gate, run_insight
 from rand_research.kano import build_audit_artifacts, build_kano_artifacts
 from rand_research.models import ExecutionContext, NormalizedItem, RunMeta
@@ -120,6 +120,8 @@ def run_once(
                     )
                 )
             except Exception as exc:
+                if isinstance(exc, ShadowSearchError):
+                    items.extend(exc.items)
                 source_failures += 1
                 errors.append(f"{source['name']}: {exc}")
         items = _apply_execution_context(_dedupe_items(items), pre_state_context)[:max_items]
@@ -394,15 +396,13 @@ def run_once(
     }
 
 def _dedupe_items(items: list[NormalizedItem]) -> list[NormalizedItem]:
-    deduped: list[NormalizedItem] = []
-    seen: set[str] = set()
+    by_url: dict[str, NormalizedItem] = {}
     for item in items:
         key = item.url or item.title
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(item)
-    return deduped
+        previous = by_url.get(key)
+        if previous is None or (previous.kano_review_status == "pending" and item.kano_review_status != "pending"):
+            by_url[key] = item
+    return list(by_url.values())
 
 
 def _apply_execution_context(items: list[NormalizedItem], execution_context: ExecutionContext) -> list[NormalizedItem]:

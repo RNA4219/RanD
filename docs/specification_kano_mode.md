@@ -111,7 +111,7 @@ KanoMode preset は少なくとも次を宣言できる。
 
 offline eval は live web search と live LLM 実行に依存しない。これにより、要件 / 仕様 / artifact 契約の回帰確認を安定させる。
 
-`kano_requirements_hybrid` は `kano_shadow_search` adapter を持つ。adapter は `RAND_KANO_SHADOW_SEARCH=1` のときだけ有効になり、検索 URL から取得した link evidence を `source_tier=user_signal` または `comparison` として保存する。未設定時は 0 件を返し、fixture / query seed の再現性を壊さない。live shadow evidence は検索順位、SEO、locale、時点差のバイアスを持つため、通常 acceptance の正本にはしない。
+`kano_requirements_hybrid` は `RAND_KANO_SHADOW_SEARCH=1` で HTML または RustXNG から検索結果を収集する。両方式とも検索直後は `source_tier=discovery`、`review_status=pending` とする。検索語の seed も確認待ちとして扱う。出典本文を確認した検索結果は `verified`、対象外は `excluded` として記録する。確認待ち・対象外の結果は要件の分類、信頼度、昇格判定、昇格した要件の根拠参照から除く。従来の確認状態を持たない shadow 検索結果は、検索タグまたは `shadow_search_url` から識別して確認待ちとする。[設定と確認手順](../research-runtime/README.md#kanomode-の検索と本文確認)
 
 ### 5.3 query family
 

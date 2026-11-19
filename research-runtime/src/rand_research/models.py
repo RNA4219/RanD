@@ -24,6 +24,22 @@ class NormalizedItem:
     high_priority: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def kano_review_status(self) -> str | None:
+        if self.url.startswith("query://") or "query_seed" in self.tags:
+            return "pending"
+        if "review_status" in self.metadata:
+            status = self.metadata["review_status"]
+            return status if status in ("verified", "excluded") else "pending"
+        # Search records collected before review_status existed still carry provenance.
+        if "shadow_search_url" in self.metadata or "shadow_search" in self.tags:
+            return "pending"
+        return None
+
+    @property
+    def supports_kano_requirement(self) -> bool:
+        return self.kano_review_status in (None, "verified")
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
