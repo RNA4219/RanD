@@ -32,7 +32,7 @@ def atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None
     fd, tmp_path = tempfile.mkstemp(dir=target.parent, suffix=".tmp", prefix=f"{target.name}.")
     temp_target = Path(tmp_path)
     try:
-        with os.fdopen(fd, "w", encoding=encoding) as f:
+        with os.fdopen(fd, "w", encoding=encoding, newline="") as f:
             f.write(content)
             f.flush()
         _replace_with_retry(temp_target, target)
@@ -166,12 +166,15 @@ class FileLock:
             except OSError:
                 return False
         age = time.time() - float(metadata.get("created_epoch", stat.st_mtime))
-        if age > self.stale_seconds:
-            return True
         if metadata.get("hostname") != socket.gethostname():
-            return False
+            # Liveness cannot be checked across hosts; fall back to age.
+            return age > self.stale_seconds
         pid = metadata.get("pid")
-        return isinstance(pid, int) and not _pid_is_alive(pid)
+        if isinstance(pid, int):
+            # A live local owner is never stale, however long it has held
+            # the lock; age alone must not break a live read-modify-write.
+            return not _pid_is_alive(pid)
+        return age > self.stale_seconds
 
     def _reclaim_stale(self) -> None:
         try:
@@ -226,6 +229,11 @@ def _pid_is_alive(pid: int) -> bool:
             kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # EPERM: the process exists but is owned by another user.
+        return True
     except OSError:
         return False
     return True

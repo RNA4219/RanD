@@ -125,6 +125,37 @@ def test_stale_lock_from_dead_local_process_is_reclaimed() -> None:
         assert not lock_path.exists()
 
 
+def test_live_lock_is_not_reclaimed_for_age_alone() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        lock_path = Path(temp_dir) / "state.json.lock"
+        lock_path.write_text(
+            json.dumps(
+                {
+                    "hostname": socket.gethostname(),
+                    "pid": os.getpid(),
+                    "created_at": "2026-01-01T00:00:00+00:00",
+                    "created_epoch": time.time() - 100_000,
+                    "nonce": "live-owner",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        lock = FileLock(lock_path, timeout_seconds=0.2)
+        assert lock.acquire() is False
+        metadata = json.loads(lock_path.read_text(encoding="utf-8"))
+        assert metadata["nonce"] == "live-owner"
+
+
+def test_pid_is_alive_treats_permission_error_as_alive() -> None:
+    from rand_research.io_utils import _pid_is_alive
+
+    with patch("rand_research.io_utils.os.kill", side_effect=PermissionError("eperm")):
+        assert _pid_is_alive(12345) is True
+    with patch("rand_research.io_utils.os.kill", side_effect=ProcessLookupError("gone")):
+        assert _pid_is_alive(12345) is False
+
+
 def test_permission_error_is_not_treated_as_contention() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         lock = FileLock(Path(temp_dir) / "state.json.lock")
