@@ -4,6 +4,8 @@ import json
 import multiprocessing
 import os
 import socket
+import subprocess
+import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -12,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from rand_research.io_utils import FileLock
+from rand_research.io_utils import FileLock, _pid_is_alive
 from rand_research.models import NormalizedItem
 from rand_research.operations import record_notification_outbox
 from rand_research.state_store import upsert_task_record
@@ -147,13 +149,42 @@ def test_live_lock_is_not_reclaimed_for_age_alone() -> None:
         assert metadata["nonce"] == "live-owner"
 
 
-def test_pid_is_alive_treats_permission_error_as_alive() -> None:
-    from rand_research.io_utils import _pid_is_alive
-
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX uses kill(pid, 0)")
+def test_posix_pid_is_alive_treats_permission_error_as_alive() -> None:
+    other_pid = os.getpid() + 1
     with patch("rand_research.io_utils.os.kill", side_effect=PermissionError("eperm")):
-        assert _pid_is_alive(12345) is True
+        assert _pid_is_alive(other_pid) is True
     with patch("rand_research.io_utils.os.kill", side_effect=ProcessLookupError("gone")):
-        assert _pid_is_alive(12345) is False
+        assert _pid_is_alive(other_pid) is False
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows process handles")
+@pytest.mark.parametrize(("winerror", "keep_lock"), [(5, True), (8, True), (87, False)])
+def test_windows_open_process_error(winerror: int, keep_lock: bool) -> None:
+    error = OSError(0, "OpenProcess failed", None, winerror)
+    with patch("_winapi.OpenProcess", side_effect=error):
+        assert _pid_is_alive(os.getpid() + 1) is keep_lock
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows process handles")
+def test_windows_wait_failure_keeps_lock_and_closes_handle() -> None:
+    with (
+        patch("_winapi.OpenProcess", return_value=123),
+        patch("_winapi.WaitForSingleObject", side_effect=OSError("wait failed")),
+        patch("_winapi.CloseHandle") as close_handle,
+    ):
+        assert _pid_is_alive(os.getpid() + 1)
+        close_handle.assert_called_once_with(123)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows exit code 259")
+def test_windows_detects_exit_even_with_still_active_exit_code() -> None:
+    script = "import sys; sys.stdin.buffer.read(1); sys.exit(259)"
+    with subprocess.Popen([sys.executable, "-c", script], stdin=subprocess.PIPE) as process:
+        assert _pid_is_alive(process.pid)
+        process.communicate(input=b"x", timeout=10)
+        assert process.returncode == 259
+        assert not _pid_is_alive(process.pid)
 
 
 def test_permission_error_is_not_treated_as_contention() -> None:
