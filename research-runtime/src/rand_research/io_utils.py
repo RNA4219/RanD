@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 import os
 import socket
+import sys
 import tempfile
 import threading
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 from uuid import uuid4
 
 T = TypeVar("T")
@@ -207,26 +208,23 @@ def with_file_lock(
 def _pid_is_alive(pid: int) -> bool:
     if pid == os.getpid():
         return True
-    if os.name == "nt":
-        import ctypes
+    if sys.platform == "win32":
+        import _winapi
 
-        process_query_limited_information = 0x1000
-        still_active = 259
-        kernel32 = cast(Any, ctypes).windll.kernel32
-        handle = kernel32.OpenProcess(
-            process_query_limited_information,
-            False,
-            pid,
-        )
-        if not handle:
+        if not 0 < pid <= 0xFFFFFFFF:
             return False
         try:
-            exit_code = ctypes.c_ulong()
-            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
-                return False
-            return exit_code.value == still_active
+            handle = _winapi.OpenProcess(_winapi.SYNCHRONIZE, False, pid)
+        except OSError as exc:
+            # An absent PID gives ERROR_INVALID_PARAMETER (87). An owner
+            # we cannot inspect may still be using the lock.
+            return exc.winerror != 87
+        try:
+            return _winapi.WaitForSingleObject(handle, 0) != _winapi.WAIT_OBJECT_0
+        except OSError:
+            return True
         finally:
-            kernel32.CloseHandle(handle)
+            _winapi.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
