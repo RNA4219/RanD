@@ -151,10 +151,11 @@ def test_live_lock_is_not_reclaimed_for_age_alone() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX uses kill(pid, 0)")
 def test_posix_pid_is_alive_treats_permission_error_as_alive() -> None:
+    other_pid = os.getpid() + 1
     with patch("rand_research.io_utils.os.kill", side_effect=PermissionError("eperm")):
-        assert _pid_is_alive(12345) is True
+        assert _pid_is_alive(other_pid) is True
     with patch("rand_research.io_utils.os.kill", side_effect=ProcessLookupError("gone")):
-        assert _pid_is_alive(12345) is False
+        assert _pid_is_alive(other_pid) is False
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows process handles")
